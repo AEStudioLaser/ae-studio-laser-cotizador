@@ -1,4 +1,4 @@
-const CACHE = 'ae-studio-manager-v8'
+const CACHE = 'ae-studio-manager-v10'
 const CORE = ['/', '/manifest.webmanifest', '/logo-ae.png', '/icons/icon-192.png', '/icons/icon-512.png']
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(CORE)))
