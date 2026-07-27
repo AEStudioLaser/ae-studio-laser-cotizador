@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#1457d9" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="A&E Cotizador" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<title>A&E Studio Laser — Cotizador 3D</title>
+<style>
+:root{--blue:#1457d9;--blue2:#0e3fa5;--bg:#f4f7fb;--card:#fff;--text:#13213a;--muted:#69758a;--line:#dfe6f1;--danger:#c62828;--ok:#137a4c;--shadow:0 10px 30px rgba(20,53,100,.09)}
+*{box-sizing:border-box}html{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}body{margin:0;min-height:100vh}.app{max-width:1080px;margin:auto;padding:18px 14px 90px}.header{background:linear-gradient(135deg,var(--blue),var(--blue2));color:#fff;border-radius:22px;padding:24px;box-shadow:var(--shadow);margin-bottom:16px}.brand{font-size:clamp(25px,5vw,38px);font-weight:850;letter-spacing:-.04em}.subtitle{opacity:.86;margin-top:4px}.tabs{display:flex;gap:8px;overflow:auto;margin:0 0 16px;padding:2px}.tab{border:0;background:#e7edf8;color:#4a5870;border-radius:999px;padding:10px 16px;font-weight:750;white-space:nowrap;cursor:pointer}.tab.active{background:var(--blue);color:#fff}.page{display:none}.page.active{display:block}.grid{display:grid;grid-template-columns:1.18fr .82fr;gap:16px}@media(max-width:780px){.grid{grid-template-columns:1fr}.sticky{position:static!important}}.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:var(--shadow);margin-bottom:14px}.card h2{font-size:17px;margin:0 0 15px}.fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}.full{grid-column:1/-1}@media(max-width:520px){.fields{grid-template-columns:1fr}.full{grid-column:auto}}label{display:block;font-size:12px;font-weight:800;color:var(--muted);margin:0 0 6px;text-transform:uppercase;letter-spacing:.04em}input,select{width:100%;border:1px solid #ccd6e5;border-radius:12px;padding:12px 13px;font-size:16px;background:#fff;color:var(--text);outline:none}input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(20,87,217,.12)}.inline{display:grid;grid-template-columns:1fr 1fr;gap:10px}.range-row{display:flex;align-items:center;gap:12px}.range-row input{padding:0}.range-value{font-size:19px;font-weight:850;color:var(--blue);min-width:58px;text-align:right}.result{background:linear-gradient(145deg,#123d93,#1457d9);color:#fff;border:0}.total-label{font-size:12px;font-weight:800;letter-spacing:.12em;opacity:.8}.total{font-size:clamp(40px,9vw,62px);font-weight:900;letter-spacing:-.055em;margin:4px 0 12px}.unit-price{display:flex;justify-content:space-between;padding-top:12px;border-top:1px solid rgba(255,255,255,.22);font-size:15px}.breakdown{margin-top:14px}.row{display:flex;justify-content:space-between;gap:14px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}.row:last-child{border-bottom:0}.row strong{white-space:nowrap}.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}.btn{border:0;border-radius:12px;padding:13px 14px;font-size:15px;font-weight:800;cursor:pointer}.btn-primary{background:var(--blue);color:#fff}.btn-secondary{background:#e9effa;color:var(--blue2)}.btn-dark{background:#172238;color:#fff}.btn-danger{background:#fff0f0;color:var(--danger)}.btn:active{transform:scale(.985)}.sticky{position:sticky;top:14px}.notice{font-size:13px;color:var(--muted);line-height:1.45}.history-item,.model-item,.material-item{border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px}.item-top{display:flex;justify-content:space-between;gap:10px}.item-title{font-weight:850}.item-meta{font-size:13px;color:var(--muted);margin-top:4px}.item-actions{display:flex;gap:8px;margin-top:12px}.mini{border:0;border-radius:9px;padding:8px 10px;font-weight:750;cursor:pointer}.empty{text-align:center;color:var(--muted);padding:30px 10px}.badge{display:inline-block;padding:5px 9px;border-radius:999px;background:#edf3ff;color:var(--blue2);font-size:12px;font-weight:800}.settings-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}@media(max-width:520px){.settings-grid{grid-template-columns:1fr}}.success{color:var(--ok);font-weight:750}.footer-note{text-align:center;color:var(--muted);font-size:12px;margin:18px}.no-print{}
+@media print{body{background:#fff}.no-print,.tabs,.actions,.header .subtitle{display:none!important}.app{padding:0;max-width:none}.header{box-shadow:none;border-radius:0;margin:0 0 18px;background:#fff;color:#111;border-bottom:3px solid #1457d9}.grid{display:block}.card{box-shadow:none;border:1px solid #ddd}.result{background:#fff!important;color:#111!important;border:2px solid #1457d9}.unit-price{border-top:1px solid #ccc}.page{display:none!important}#quotePage{display:block!important}.sticky{position:static}.form-card{display:none}.print-only{display:block!important}}.print-only{display:none}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="header"><div class="brand">A&amp;E Studio Laser</div><div class="subtitle">Cotizador de impresión 3D</div></header>
+  <nav class="tabs no-print">
+    <button class="tab active" data-page="quotePage">Cotizar</button>
+    <button class="tab" data-page="modelsPage">Modelos</button>
+    <button class="tab" data-page="historyPage">Historial</button>
+    <button class="tab" data-page="settingsPage">Configuración</button>
+  </nav>
+
+  <main id="quotePage" class="page active">
+    <div class="grid">
+      <section>
+        <div class="card form-card">
+          <h2>Datos de la cotización</h2>
+          <div class="fields">
+            <div><label>Cliente (opcional)</label><input id="client" placeholder="Nombre del cliente"></div>
+            <div><label>Proyecto</label><input id="project" placeholder="Ej. Dragón articulado"></div>
+            <div class="full"><label>Material</label><select id="material"></select></div>
+            <div><label>Cantidad</label><input id="qty" type="number" min="1" step="1" value="1"></div>
+            <div><label>Peso total (g)</label><input id="weight" type="number" min="0" step="0.1" value="50"></div>
+            <div class="full"><label>Tiempo total de impresión</label><div class="inline"><input id="hours" type="number" min="0" step="1" value="4" placeholder="Horas"><input id="minutes" type="number" min="0" max="59" step="1" value="0" placeholder="Minutos"></div></div>
+            <div><label>Extras ($)</label><input id="extras" type="number" min="0" step="1" value="0"></div>
+            <div><label>Mano de obra ($)</label><input id="labor" type="number" min="0" step="1" value="0"></div>
+            <div class="full"><label>Ganancia</label><div class="range-row"><input id="profit" type="range" min="0" max="150" step="5" value="50"><span class="range-value" id="profitValue">50%</span></div></div>
+          </div>
+        </div>
+        <div class="card form-card">
+          <h2>Acciones</h2>
+          <div class="actions">
+            <button class="btn btn-primary" id="saveBtn">Guardar</button>
+            <button class="btn btn-secondary" id="copyBtn">Copiar resumen</button>
+            <button class="btn btn-dark" id="pdfBtn">Imprimir / PDF</button>
+            <button class="btn btn-danger" id="newBtn">Nueva</button>
+          </div>
+          <p id="status" class="notice" style="margin:12px 0 0"></p>
+        </div>
+      </section>
+      <aside class="sticky">
+        <div class="card result">
+          <div class="total-label">TOTAL SUGERIDO</div><div class="total" id="total">$0.00</div>
+          <div class="unit-price"><span>Precio por pieza</span><strong id="unitPrice">$0.00</strong></div>
+        </div>
+        <div class="card">
+          <h2>Desglose</h2>
+          <div class="breakdown">
+            <div class="row"><span>Material</span><strong id="materialCost">$0.00</strong></div>
+            <div class="row"><span>Electricidad</span><strong id="electricityCost">$0.00</strong></div>
+            <div class="row"><span>Desgaste</span><strong id="wearCost">$0.00</strong></div>
+            <div class="row"><span>Mano de obra</span><strong id="laborCost">$0.00</strong></div>
+            <div class="row"><span>Extras</span><strong id="extrasCost">$0.00</strong></div>
+            <div class="row"><span>Costo de producción</span><strong id="productionCost">$0.00</strong></div>
+            <div class="row"><span>Ganancia</span><strong id="profitCost">$0.00</strong></div>
+          </div>
+          <p class="notice">Valores iniciales: PLA $298/kg, Bambu Lab A1 y 50% de ganancia. Puedes cambiarlos en Configuración.</p>
+        </div>
+        <div class="card print-only" id="printDetails"></div>
+      </aside>
+    </div>
+  </main>
+
+  <main id="modelsPage" class="page">
+    <div class="card"><h2>Guardar modelo frecuente</h2><div class="fields">
+      <div><label>Nombre del modelo</label><input id="modelName" placeholder="Ej. Dragón articulado"></div>
+      <div><label>Material</label><select id="modelMaterial"></select></div>
+      <div><label>Peso total (g)</label><input id="modelWeight" type="number" min="0" step=".1"></div>
+      <div><label>Tiempo total</label><div class="inline"><input id="modelHours" type="number" min="0" placeholder="Horas"><input id="modelMinutes" type="number" min="0" max="59" placeholder="Min"></div></div>
+      <div class="full"><button class="btn btn-primary" id="addModelBtn">Guardar modelo</button></div>
+    </div></div>
+    <div class="card"><h2>Mis modelos</h2><div id="modelsList"></div></div>
+  </main>
+
+  <main id="historyPage" class="page">
+    <div class="card"><div class="item-top"><h2>Historial de cotizaciones</h2><button class="mini btn-danger" id="clearHistoryBtn">Vaciar</button></div><div id="historyList"></div></div>
+  </main>
+
+  <main id="settingsPage" class="page">
+    <div class="card"><h2>Costos generales</h2><div class="settings-grid">
+      <div><label>Impresora</label><input id="printer" value="Bambu Lab A1"></div>
+      <div><label>Electricidad ($/kWh)</label><input id="kwhPrice" type="number" min="0" step=".01"></div>
+      <div><label>Consumo promedio (W)</label><input id="watts" type="number" min="0" step="1"></div>
+      <div><label>Desgaste ($/hora)</label><input id="wearPerHour" type="number" min="0" step=".1"></div>
+      <div><label>Ganancia predeterminada (%)</label><input id="defaultProfit" type="number" min="0" max="300" step="5"></div>
+      <div><label>Redondear precio a múltiplos de</label><select id="roundTo"><option value="1">$1</option><option value="5">$5</option><option value="10">$10</option></select></div>
+    </div><div class="actions"><button class="btn btn-primary" id="saveSettingsBtn">Guardar configuración</button><button class="btn btn-secondary" id="resetSettingsBtn">Restablecer</button></div></div>
+    <div class="card"><h2>Materiales</h2><div class="fields"><div><label>Nombre</label><input id="newMaterialName" placeholder="Ej. PETG"></div><div><label>Precio por kg</label><input id="newMaterialPrice" type="number" min="0" step="1"></div><div class="full"><button class="btn btn-primary" id="addMaterialBtn">Agregar material</button></div></div><div id="materialsList" style="margin-top:14px"></div></div>
+  </main>
+  <div class="card no-print" id="installCard" style="display:none">
+  <h2>Instalar en el celular</h2>
+  <p class="notice" id="installText">Instala el cotizador para abrirlo desde tu pantalla de inicio.</p>
+  <button class="btn btn-primary" id="installBtn" style="width:100%">Instalar aplicación</button>
+</div>
+<div class="footer-note">A&amp;E Studio Laser · Los datos se guardan únicamente en este dispositivo.</div>
+</div>
+<script>
+const $=id=>document.getElementById(id); const money=n=>new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(Number(n)||0); const num=(id)=>Math.max(0,Number($(id).value)||0);
+const defaults={printer:'Bambu Lab A1',kwhPrice:3.4,watts:95,wearPerHour:5,defaultProfit:50,roundTo:1,materials:[{id:'pla',name:'PLA',price:298},{id:'petg',name:'PETG',price:420},{id:'tpu',name:'TPU',price:540},{id:'abs',name:'ABS',price:390},{id:'asa',name:'ASA',price:590},{id:'resina',name:'Resina',price:850}]};
+let settings=JSON.parse(localStorage.getItem('ae3d_settings')||'null')||structuredClone(defaults); let history=JSON.parse(localStorage.getItem('ae3d_history')||'[]'); let models=JSON.parse(localStorage.getItem('ae3d_models')||'[]'); let lastCalc={};
+function persistSettings(){localStorage.setItem('ae3d_settings',JSON.stringify(settings))} function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function populateMaterials(){['material','modelMaterial'].forEach(id=>{const old=$(id).value;$(id).innerHTML=settings.materials.map(m=>`<option value="${m.id}">${m.name} — ${money(m.price)}/kg</option>`).join('');if(settings.materials.some(m=>m.id===old))$(id).value=old});renderMaterials()}
+function roundPrice(v){const r=Number(settings.roundTo)||1;return Math.ceil(v/r)*r}
+function calculate(){const material=settings.materials.find(m=>m.id===$('material').value)||settings.materials[0];const qty=Math.max(1,Math.floor(num('qty')));const weight=num('weight');const hrs=num('hours')+Math.min(59,num('minutes'))/60;const extras=num('extras'),labor=num('labor'),profit=num('profit');const materialCost=weight/1000*material.price;const electricity=hrs*(settings.watts/1000)*settings.kwhPrice;const wear=hrs*settings.wearPerHour;const production=materialCost+electricity+wear+extras+labor;const gain=production*profit/100;const total=roundPrice(production+gain);const unit=total/qty;lastCalc={material,qty,weight,hrs,extras,labor,profit,materialCost,electricity,wear,production,gain,total,unit,client:$('client').value.trim(),project:$('project').value.trim()};$('total').textContent=money(total);$('unitPrice').textContent=money(unit);$('materialCost').textContent=money(materialCost);$('electricityCost').textContent=money(electricity);$('wearCost').textContent=money(wear);$('laborCost').textContent=money(labor);$('extrasCost').textContent=money(extras);$('productionCost').textContent=money(production);$('profitCost').textContent=money(total-production);$('profitValue').textContent=`${profit}%`;$('printDetails').innerHTML=`<h2>Cotización</h2><div class="row"><span>Cliente</span><strong>${lastCalc.client||'—'}</strong></div><div class="row"><span>Proyecto</span><strong>${lastCalc.project||'—'}</strong></div><div class="row"><span>Material</span><strong>${material.name}</strong></div><div class="row"><span>Cantidad</span><strong>${qty}</strong></div><div class="row"><span>Peso total</span><strong>${weight.toFixed(1)} g</strong></div><div class="row"><span>Tiempo</span><strong>${hrs.toFixed(2)} h</strong></div><p class="notice">Cotización sujeta a revisión final. Vigencia: 15 días.</p>`}
+function status(msg,ok=true){$('status').textContent=msg;$('status').className=ok?'success':'notice';setTimeout(()=>{$('status').textContent=''},2500)}
+function summary(){return `A&E Studio Laser\nCotización de impresión 3D\n\nCliente: ${lastCalc.client||'—'}\nProyecto: ${lastCalc.project||'Pieza impresa en 3D'}\nMaterial: ${lastCalc.material.name}\nCantidad: ${lastCalc.qty}\nPrecio por pieza: ${money(lastCalc.unit)}\nTOTAL: ${money(lastCalc.total)}\n\nVigencia: 15 días.`}
+function saveQuote(){calculate();history.unshift({...lastCalc,id:uid(),date:new Date().toISOString()});localStorage.setItem('ae3d_history',JSON.stringify(history));renderHistory();status('Cotización guardada.')}
+function newQuote(){['client','project'].forEach(id=>$(id).value='');$('qty').value=1;$('weight').value=0;$('hours').value=0;$('minutes').value=0;$('extras').value=0;$('labor').value=0;$('profit').value=settings.defaultProfit;calculate();status('Nueva cotización lista.')}
+function renderHistory(){const el=$('historyList');if(!history.length){el.innerHTML='<div class="empty">Aún no hay cotizaciones guardadas.</div>';return}el.innerHTML=history.map(q=>`<div class="history-item"><div class="item-top"><div><div class="item-title">${q.project||'Pieza 3D'}</div><div class="item-meta">${q.client||'Sin cliente'} · ${new Date(q.date).toLocaleString('es-MX')}</div></div><span class="badge">${money(q.total)}</span></div><div class="item-meta">${q.qty} pieza(s) · ${q.material.name} · ${q.weight} g</div><div class="item-actions"><button class="mini btn-secondary" onclick="loadHistory('${q.id}')">Usar de nuevo</button><button class="mini btn-danger" onclick="deleteHistory('${q.id}')">Eliminar</button></div></div>`).join('')}
+window.loadHistory=id=>{const q=history.find(x=>x.id===id);if(!q)return;$('client').value=q.client||'';$('project').value=q.project||'';$('material').value=q.material.id;$('qty').value=q.qty;$('weight').value=q.weight;$('hours').value=Math.floor(q.hrs);$('minutes').value=Math.round((q.hrs-Math.floor(q.hrs))*60);$('extras').value=q.extras;$('labor').value=q.labor;$('profit').value=q.profit;showPage('quotePage');calculate()};window.deleteHistory=id=>{history=history.filter(x=>x.id!==id);localStorage.setItem('ae3d_history',JSON.stringify(history));renderHistory()}
+function renderModels(){const el=$('modelsList');if(!models.length){el.innerHTML='<div class="empty">Guarda tus modelos frecuentes para cotizar más rápido.</div>';return}el.innerHTML=models.map(m=>`<div class="model-item"><div class="item-top"><div><div class="item-title">${m.name}</div><div class="item-meta">${m.materialName} · ${m.weight} g · ${m.hours} h ${m.minutes} min</div></div></div><div class="item-actions"><button class="mini btn-secondary" onclick="useModel('${m.id}')">Cotizar</button><button class="mini btn-danger" onclick="deleteModel('${m.id}')">Eliminar</button></div></div>`).join('')}
+window.useModel=id=>{const m=models.find(x=>x.id===id);if(!m)return;$('project').value=m.name;$('material').value=m.materialId;$('weight').value=m.weight;$('hours').value=m.hours;$('minutes').value=m.minutes;showPage('quotePage');calculate()};window.deleteModel=id=>{models=models.filter(x=>x.id!==id);localStorage.setItem('ae3d_models',JSON.stringify(models));renderModels()}
+function addModel(){const name=$('modelName').value.trim();if(!name)return alert('Escribe el nombre del modelo.');const mat=settings.materials.find(m=>m.id===$('modelMaterial').value);models.unshift({id:uid(),name,materialId:mat.id,materialName:mat.name,weight:num('modelWeight'),hours:num('modelHours'),minutes:Math.min(59,num('modelMinutes'))});localStorage.setItem('ae3d_models',JSON.stringify(models));$('modelName').value='';$('modelWeight').value='';$('modelHours').value='';$('modelMinutes').value='';renderModels()}
+function renderSettings(){['printer','kwhPrice','watts','wearPerHour','defaultProfit','roundTo'].forEach(id=>$(id).value=settings[id])}
+function saveSettings(){settings.printer=$('printer').value.trim()||'Bambu Lab A1';settings.kwhPrice=num('kwhPrice');settings.watts=num('watts');settings.wearPerHour=num('wearPerHour');settings.defaultProfit=num('defaultProfit');settings.roundTo=num('roundTo')||1;persistSettings();calculate();alert('Configuración guardada.')}
+function renderMaterials(){const el=$('materialsList');if(!el)return;el.innerHTML=settings.materials.map(m=>`<div class="material-item"><div class="item-top"><div><div class="item-title">${m.name}</div><div class="item-meta">${money(m.price)} por kg</div></div>${m.id==='pla'?'<span class="badge">Principal</span>':`<button class="mini btn-danger" onclick="deleteMaterial('${m.id}')">Eliminar</button>`}</div></div>`).join('')}
+window.deleteMaterial=id=>{if(settings.materials.length<=1)return;settings.materials=settings.materials.filter(m=>m.id!==id);persistSettings();populateMaterials();calculate()}
+function addMaterial(){const name=$('newMaterialName').value.trim(),price=num('newMaterialPrice');if(!name||!price)return alert('Escribe nombre y precio.');settings.materials.push({id:uid(),name,price});persistSettings();$('newMaterialName').value='';$('newMaterialPrice').value='';populateMaterials();calculate()}
+function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id===id));document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.page===id));window.scrollTo({top:0,behavior:'smooth'})}
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>showPage(t.dataset.page));['client','project','material','qty','weight','hours','minutes','extras','labor','profit'].forEach(id=>$(id).addEventListener('input',calculate));$('saveBtn').onclick=saveQuote;$('newBtn').onclick=newQuote;$('copyBtn').onclick=async()=>{calculate();try{await navigator.clipboard.writeText(summary());status('Resumen copiado.')}catch{prompt('Copia este resumen:',summary())}};$('pdfBtn').onclick=()=>{calculate();window.print()};$('addModelBtn').onclick=addModel;$('saveSettingsBtn').onclick=saveSettings;$('resetSettingsBtn').onclick=()=>{if(confirm('¿Restablecer la configuración inicial?')){settings=structuredClone(defaults);persistSettings();renderSettings();populateMaterials();$('profit').value=settings.defaultProfit;calculate()}};$('addMaterialBtn').onclick=addMaterial;$('clearHistoryBtn').onclick=()=>{if(confirm('¿Eliminar todo el historial?')){history=[];localStorage.setItem('ae3d_history','[]');renderHistory()}};
+
+let deferredInstallPrompt = null;
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+const installCard = $('installCard');
+const installBtn = $('installBtn');
+const installText = $('installText');
+
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js'));
+}
+
+window.addEventListener('beforeinstallprompt', event => {
+  event.preventDefault();
+  deferredInstallPrompt = event;
+  if (!isStandalone) installCard.style.display = 'block';
+});
+
+if (isIOS && !isStandalone) {
+  installCard.style.display = 'block';
+  installText.textContent = 'En Safari, toca Compartir y después “Agregar a pantalla de inicio”.';
+  installBtn.textContent = 'Ver instrucciones';
+}
+
+installBtn.addEventListener('click', async () => {
+  if (deferredInstallPrompt) {
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    installCard.style.display = 'none';
+  } else if (isIOS) {
+    alert('En Safari:\n1. Toca el botón Compartir.\n2. Elige “Agregar a pantalla de inicio”.\n3. Toca Agregar.');
+  } else {
+    alert('Abre esta página desde Chrome o Safari y usa la opción “Instalar” o “Agregar a pantalla de inicio”.');
+  }
+});
+
+renderSettings();populateMaterials();$('profit').value=settings.defaultProfit;renderHistory();renderModels();calculate();
+</script>
+</body>
+</html>
