@@ -1,7 +1,7 @@
 {
-  "name": "A&E Studio Laser — Cotizador 3D",
-  "short_name": "A&E Cotizador",
-  "description": "Cotizador de impresión 3D para A&E Studio Laser",
+  "name": "A&E Studio Laser",
+  "short_name": "A&E Studio",
+  "description": "Cotizador de impresión 3D de A&E Studio Laser",
   "lang": "es-MX",
   "start_url": "./index.html",
   "scope": "./",
@@ -10,7 +10,17 @@
   "theme_color": "#1457d9",
   "orientation": "portrait-primary",
   "icons": [
-    {"src":"icons/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
-    {"src":"icons/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
   ]
 }
