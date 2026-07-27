@@ -4,8 +4,12 @@
 .usageNote span{color:#607a9a}
 .sheetMaterials{display:grid;gap:9px}
 .sheetRow{display:grid;grid-template-columns:minmax(160px,1fr) 90px 90px 100px 75px 40px;gap:8px}
-.sheetRow input{min-width:0;border:1px solid #d9e1ec;border-radius:9px;padding:10px}
+.sheetRow input,.sheetRow select{min-width:0;width:100%;border:1px solid #d9e1ec;border-radius:9px;padding:10px;background:#fff}
+.sheetField{display:grid;gap:5px}
+.sheetField span{font-size:11px;font-weight:700;color:#657287}
+.checkField{display:flex;align-items:center;gap:9px;padding-top:20px;color:#40516a;font-size:13px;font-weight:700}
+.checkField input{width:18px;height:18px;accent-color:#0f56c6}
 @media(max-width:760px){
-  .sheetRow{grid-template-columns:1fr 1fr 1fr}
+  .sheetRow{grid-template-columns:1fr 1fr}
   .sheetRow .iconButton{width:100%}
 }
