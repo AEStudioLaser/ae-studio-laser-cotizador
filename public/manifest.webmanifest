@@ -1,7 +1,7 @@
 {
   "name": "A&E Studio Laser",
   "short_name": "A&E Studio",
-  "description": "Cotizador de impresión 3D de A&E Studio Laser",
+  "description": "Cotizador, pedidos, inventario y clientes de A&E Studio Laser",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f4f7fb",
