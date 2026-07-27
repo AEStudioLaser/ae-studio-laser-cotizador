@@ -1,22 +1,29 @@
-A&E STUDIO LASER — ACTUALIZACIÓN V2 CON LOGO
+A&E STUDIO LASER — ETAPA 1 FINAL
 
-ARCHIVOS PARA SUBIR A GITHUB
-- index.html
-- logo-ae.png
-- manifest.webmanifest
-- service-worker.js
-- carpeta icons
-- README.txt
+INCLUYE
+- Aplicación construida en React.
+- Diseño adaptable a celular y computadora.
+- Logo e icono de A&E Studio Laser.
+- Cotizador 3D sencillo.
+- Materiales configurables por precio por kilogramo.
+- Electricidad, desgaste, mano de obra, extras y utilidad.
+- Historial de cotizaciones.
+- Configuración guardada.
+- Compartir cotización por WhatsApp.
+- Imprimir o guardar como PDF.
+- Funcionamiento como PWA.
 
-CÓMO ACTUALIZAR LA APP
-1. Abre tu repositorio ae-studio-laser-cotizador en GitHub.
-2. Pulsa Add file > Upload files.
-3. Arrastra TODOS los archivos y la carpeta icons de este paquete.
-4. Cuando GitHub pregunte, acepta reemplazar los archivos existentes.
+NO INCLUYE TODAVÍA
+- Pedidos.
+- Inventario de vasos, termos y materiales.
+- Clientes.
+- Dashboard.
+Estas funciones corresponden a las siguientes etapas.
+
+PUBLICACIÓN EN GITHUB
+1. Descomprime este archivo.
+2. Sube TODO el contenido a la raíz del repositorio.
+3. Reemplaza los archivos anteriores.
+4. Deben aparecer package.json, index.html, vite.config.js, src y public.
 5. Pulsa Commit changes.
-6. Vercel actualizará la aplicación automáticamente en uno o dos minutos.
-
-IMPORTANTE
-- El logo ya aparece en el encabezado.
-- El logo también se usa como icono de la aplicación.
-- Si el iPhone mantiene el icono anterior, elimina la app de la pantalla de inicio y vuelve a agregarla desde Safari.
+6. Vercel publicará la actualización automáticamente.
