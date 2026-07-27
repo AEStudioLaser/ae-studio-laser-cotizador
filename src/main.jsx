@@ -1,214 +1,137 @@
-
 import React, {useEffect, useMemo, useState} from 'react'
 import {createRoot} from 'react-dom/client'
-import {Calculator, History, Settings, Save, Trash2, Printer, MessageCircle, Menu, X, RotateCcw} from 'lucide-react'
+import {
+  Archive, BarChart3, Box, Calculator, Check, ClipboardList, FileText,
+  Menu, MessageCircle, Package, Plus, Printer, RotateCcw, Save, Search,
+  Settings, Trash2, UserRound, Users, X
+} from 'lucide-react'
 import './styles.css'
 
-const money = n => new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(Number(n)||0)
-const uid = () => crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`
+const money=v=>new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(Number(v)||0)
+const num=v=>Number(v)||0
+const uid=()=>crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`
+const today=()=>new Date().toISOString().slice(0,10)
+const defaults={businessName:'A&E Studio Laser',phone:'',printer:'Bambu Lab A1',electricityPrice:1.2,printerWatts:90,wearPerHour:5,defaultProfit:50,roundTo:5,quoteValidity:15,materials:[{id:'pla',name:'PLA',priceKg:298},{id:'petg',name:'PETG',priceKg:340}]}
+const freshQuote=s=>({client:'',project:'',material:s.materials[0]?.id||'pla',quantity:1,weight:50,hours:4,minutes:0,extras:0,labor:0,profit:num(s.defaultProfit)||50})
+const freshStock={type:'product',name:'',category:'',supplier:'',purchaseQty:1,purchaseTotal:0,stock:1,minStock:0,salePrice:0,purchaseDate:today()}
+const freshClient={name:'',phone:'',email:'',notes:''}
+const unitCost=i=>num(i.purchaseTotal)/Math.max(1,num(i.purchaseQty))
 
-const defaults = {
-  printer:'Bambu Lab A1',
-  electricityPrice:1.20,
-  printerWatts:90,
-  wearPerHour:5,
-  defaultProfit:50,
-  roundTo:5,
-  materials:[
-    {id:'pla',name:'PLA',priceKg:298},
-    {id:'petg',name:'PETG',priceKg:340}
-  ]
-}
-
-function useLocal(key, initial){
-  const [value,setValue]=useState(()=>{
-    try{return JSON.parse(localStorage.getItem(key)) ?? initial}catch{return initial}
-  })
+function useLocal(key,initial,legacy){
+  const [value,setValue]=useState(()=>{try{const v=localStorage.getItem(key);if(v)return JSON.parse(v);if(legacy){const old=localStorage.getItem(legacy);if(old)return JSON.parse(old)}}catch{}return typeof initial==='function'?initial():initial})
   useEffect(()=>localStorage.setItem(key,JSON.stringify(value)),[key,value])
   return [value,setValue]
 }
 
 function App(){
-  const [page,setPage]=useState('quote')
-  const [open,setOpen]=useState(false)
-  const [settings,setSettings]=useLocal('ae_stage1_settings',defaults)
-  const [history,setHistory]=useLocal('ae_stage1_history',[])
-
-  useEffect(()=>{
-    if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{})
-  },[])
-
-  const nav=[
-    ['quote','Cotizador',Calculator],
-    ['history','Historial',History],
-    ['settings','Configuración',Settings]
-  ]
-
+  const [page,setPage]=useState('dashboard'),[open,setOpen]=useState(false)
+  const [settings,setSettings]=useLocal('ae_settings_v5',defaults,'ae_stage1_settings')
+  const [quotes,setQuotes]=useLocal('ae_quotes_v5',[],'ae_stage1_history')
+  const [orders,setOrders]=useLocal('ae_orders_v5',[])
+  const [inventory,setInventory]=useLocal('ae_inventory_v5',[])
+  const [clients,setClients]=useLocal('ae_clients_v5',[])
+  const [models,setModels]=useLocal('ae_models_v5',[])
+  useEffect(()=>{'serviceWorker'in navigator&&navigator.serviceWorker.register('/sw.js').catch(()=>{})},[])
+  const nav=[['dashboard','Resumen',BarChart3],['quote','Cotizar',Calculator],['orders','Pedidos',ClipboardList],['inventory','Inventario',Package],['clients','Clientes',Users],['quotes','Cotizaciones',FileText],['models','Modelos',Box],['settings','Configuración',Settings]]
   const go=id=>{setPage(id);setOpen(false)}
-
-  return <div className="shell">
-    <aside className={`sidebar ${open?'open':''}`}>
-      <div className="brand">
-        <img src="/logo-ae.png" alt="A&E Studio Laser"/>
-        <div><strong>A&E Studio Laser</strong><span>Etapa 1 · Cotizador 3D</span></div>
-      </div>
-      <nav>
-        {nav.map(([id,label,Icon])=><button className={page===id?'active':''} key={id} onClick={()=>go(id)}><Icon size={19}/>{label}</button>)}
-      </nav>
-      <small>Datos guardados en este dispositivo</small>
-    </aside>
-
-    <main>
-      <header>
-        <button className="menu" onClick={()=>setOpen(!open)}>{open?<X/>:<Menu/>}</button>
-        <div><h1>{nav.find(x=>x[0]===page)?.[1]}</h1><p>A&E Studio Laser</p></div>
-      </header>
-
-      {page==='quote' && <Quote settings={settings} history={history} setHistory={setHistory}/>}
-      {page==='history' && <HistoryPage history={history} setHistory={setHistory}/>}
-      {page==='settings' && <SettingsPage settings={settings} setSettings={setSettings}/>}
-    </main>
+  return <div className="appShell">
+    <aside className={`sidebar ${open?'open':''}`}><div className="brand"><img src="/logo-ae.png" alt="A&E Studio Laser"/><div><strong>A&E Studio Laser</strong><span>Gestión del taller</span></div></div>
+      <nav>{nav.map(([id,label,Icon])=><button key={id} className={page===id?'active':''} onClick={()=>go(id)}><Icon size={19}/>{label}</button>)}</nav><small>Datos guardados en este dispositivo</small></aside>
+    {open&&<button className="scrim" onClick={()=>setOpen(false)} aria-label="Cerrar menú"/>}
+    <main className="main"><header className="topbar"><button className="menuButton" onClick={()=>setOpen(!open)}>{open?<X/>:<Menu/>}</button><div><h1>{nav.find(n=>n[0]===page)?.[1]}</h1><p>A&E Studio Laser</p></div></header>
+      <div className="content">
+        {page==='dashboard'&&<Dashboard orders={orders} inventory={inventory} quotes={quotes} go={go}/>}
+        {page==='quote'&&<Quote settings={settings} quotes={quotes} setQuotes={setQuotes} orders={orders} setOrders={setOrders} clients={clients} setClients={setClients} models={models} setModels={setModels}/>}
+        {page==='orders'&&<Orders orders={orders} setOrders={setOrders}/>}
+        {page==='inventory'&&<Inventory items={inventory} setItems={setInventory}/>}
+        {page==='clients'&&<Clients clients={clients} setClients={setClients}/>}
+        {page==='quotes'&&<Quotes quotes={quotes} setQuotes={setQuotes}/>}
+        {page==='models'&&<Models models={models} setModels={setModels} settings={settings}/>}
+        {page==='settings'&&<SettingsPage settings={settings} setSettings={setSettings}/>}
+      </div></main>
   </div>
 }
 
-function Quote({settings,history,setHistory}){
-  const [form,setForm]=useState({
-    client:'',
-    project:'',
-    material:settings.materials[0]?.id||'pla',
-    quantity:1,
-    weight:50,
-    hours:4,
-    minutes:0,
-    extras:0,
-    labor:0,
-    profit:settings.defaultProfit
-  })
-
-  useEffect(()=>{
-    if(!settings.materials.some(m=>m.id===form.material)){
-      setForm(f=>({...f,material:settings.materials[0]?.id||''}))
-    }
-  },[settings.materials])
-
-  const set=(k,v)=>setForm(f=>({...f,[k]:v}))
-  const mat=settings.materials.find(m=>m.id===form.material)||settings.materials[0]
-
-  const calc=useMemo(()=>{
-    const hrs=Number(form.hours||0)+Number(form.minutes||0)/60
-    const materialCost=(Number(form.weight||0)/1000)*Number(mat?.priceKg||0)
-    const electricity=hrs*(Number(settings.printerWatts||0)/1000)*Number(settings.electricityPrice||0)
-    const wear=hrs*Number(settings.wearPerHour||0)
-    const production=materialCost+electricity+wear+Number(form.extras||0)+Number(form.labor||0)
-    const raw=production*(1+Number(form.profit||0)/100)
-    const round=Number(settings.roundTo||1)
-    const total=Math.ceil(raw/round)*round
-    return {hrs,materialCost,electricity,wear,production,total,unit:total/Math.max(1,Number(form.quantity||1))}
-  },[form,settings,mat])
-
-  const save=()=>{
-    const item={id:uid(),date:new Date().toISOString(),...form,materialName:mat?.name||'',...calc}
-    setHistory([item,...history])
-    alert('Cotización guardada.')
-  }
-
-  const whatsapp=()=>{
-    const text=`A&E Studio Laser\nCotización de impresión 3D\n\nCliente: ${form.client||'—'}\nProyecto: ${form.project||'—'}\nCantidad: ${form.quantity}\nPrecio por pieza: ${money(calc.unit)}\nTotal: ${money(calc.total)}`
-    const url=`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`
-    window.location.href=url
-  }
-
-  return <div className="grid">
-    <section className="card">
-      <div className="title"><div><h2>Nueva cotización</h2><p>Captura solo los datos necesarios.</p></div></div>
-
-      <div className="formGrid">
-        <Field label="Cliente"><input value={form.client} onChange={e=>set('client',e.target.value)} placeholder="Nombre del cliente"/></Field>
-        <Field label="Proyecto"><input value={form.project} onChange={e=>set('project',e.target.value)} placeholder="Ej. Llavero personalizado"/></Field>
-        <Field label="Material" full><select value={form.material} onChange={e=>set('material',e.target.value)}>{settings.materials.map(m=><option key={m.id} value={m.id}>{m.name} — {money(m.priceKg)}/kg</option>)}</select></Field>
-        <Field label="Cantidad"><input type="number" min="1" value={form.quantity} onChange={e=>set('quantity',e.target.value)}/></Field>
-        <Field label="Peso total (g)"><input type="number" min="0" value={form.weight} onChange={e=>set('weight',e.target.value)}/></Field>
-        <Field label="Horas"><input type="number" min="0" value={form.hours} onChange={e=>set('hours',e.target.value)}/></Field>
-        <Field label="Minutos"><input type="number" min="0" max="59" value={form.minutes} onChange={e=>set('minutes',e.target.value)}/></Field>
-        <Field label="Extras ($)"><input type="number" min="0" value={form.extras} onChange={e=>set('extras',e.target.value)}/></Field>
-        <Field label="Mano de obra ($)"><input type="number" min="0" value={form.labor} onChange={e=>set('labor',e.target.value)}/></Field>
-        <Field label={`Ganancia: ${form.profit}%`} full><input type="range" min="0" max="150" step="5" value={form.profit} onChange={e=>set('profit',e.target.value)}/></Field>
-      </div>
-
-      <div className="actions">
-        <button className="primary" onClick={save}><Save size={18}/>Guardar</button>
-        <button onClick={whatsapp}><MessageCircle size={18}/>WhatsApp</button>
-        <button onClick={()=>window.print()}><Printer size={18}/>PDF / Imprimir</button>
-      </div>
-    </section>
-
-    <aside>
-      <div className="total">
-        <span>Total sugerido</span>
-        <strong>{money(calc.total)}</strong>
-        <div><span>Precio por pieza</span><b>{money(calc.unit)}</b></div>
-      </div>
-      <div className="card">
-        <h2>Desglose</h2>
-        <Line label="Material" value={calc.materialCost}/>
-        <Line label="Electricidad" value={calc.electricity}/>
-        <Line label="Desgaste" value={calc.wear}/>
-        <Line label="Mano de obra" value={form.labor}/>
-        <Line label="Extras" value={form.extras}/>
-        <Line label="Costo de producción" value={calc.production} bold/>
-        <Line label="Ganancia" value={calc.total-calc.production} bold/>
-      </div>
-    </aside>
-  </div>
+function Dashboard({orders,inventory,quotes,go}){
+  const delivered=orders.filter(o=>o.status==='delivered'),sales=delivered.reduce((s,o)=>s+num(o.total),0),cost=delivered.reduce((s,o)=>s+num(o.productionCost),0)
+  const pending=orders.filter(o=>!['delivered','cancelled'].includes(o.status)).length,low=inventory.filter(i=>num(i.stock)<=num(i.minStock)),investment=inventory.reduce((s,i)=>s+unitCost(i)*num(i.stock),0)
+  return <><section className="hero"><div><span>Panel del negocio</span><h2>Todo tu taller en un solo lugar</h2><p>Cotiza, controla pedidos y conoce el valor de tu inventario.</p></div><button className="primary" onClick={()=>go('quote')}><Plus size={18}/>Nueva cotización</button></section>
+    <div className="stats"><Stat label="Ventas entregadas" value={money(sales)} tone="blue"/><Stat label="Utilidad estimada" value={money(sales-cost)} tone="green"/><Stat label="Pedidos activos" value={pending} tone="orange"/><Stat label="Inventario invertido" value={money(investment)} tone="purple"/></div>
+    <div className="twoColumns"><Card title="Pedidos recientes" subtitle={`${orders.length} registrados`}>{orders.length?orders.slice(0,5).map(o=><div className="listRow" key={o.id}><div><b>{o.project||'Pedido'}</b><span>{o.client||'Sin cliente'}</span></div><div className="right"><Status value={o.status}/><b>{money(o.total)}</b></div></div>):<Empty text="Aún no hay pedidos."/>}</Card>
+      <Card title="Alertas de inventario" subtitle={`${low.length} con existencia baja`}>{low.length?low.slice(0,6).map(i=><div className="listRow" key={i.id}><div><b>{i.name}</b><span>{i.category||'Sin categoría'}</span></div><span className="stockAlert">{num(i.stock)} disponibles</span></div>):<Empty text="Sin alertas de existencias."/>}</Card></div>
+    <Card title="Actividad" subtitle="Información capturada"><div className="activity"><button onClick={()=>go('quotes')}><FileText/><b>{quotes.length}</b><span>Cotizaciones</span></button><button onClick={()=>go('orders')}><ClipboardList/><b>{orders.length}</b><span>Pedidos</span></button><button onClick={()=>go('inventory')}><Package/><b>{inventory.length}</b><span>Artículos</span></button></div></Card>
+  </>
 }
 
-function HistoryPage({history,setHistory}){
-  return <section className="card">
-    <div className="title">
-      <div><h2>Historial de cotizaciones</h2><p>{history.length} cotizaciones guardadas.</p></div>
-      {history.length>0&&<button className="danger" onClick={()=>confirm('¿Borrar todo el historial?')&&setHistory([])}><Trash2 size={17}/>Borrar todo</button>}
-    </div>
-    {history.length===0?<div className="empty">Todavía no hay cotizaciones guardadas.</div>:
-    <div className="tableWrap"><table><thead><tr><th>Fecha</th><th>Cliente</th><th>Proyecto</th><th>Material</th><th>Total</th><th></th></tr></thead>
-    <tbody>{history.map(h=><tr key={h.id}><td>{new Date(h.date).toLocaleDateString('es-MX')}</td><td>{h.client||'—'}</td><td>{h.project||'—'}</td><td>{h.materialName}</td><td><b>{money(h.total)}</b></td><td><button className="icon" onClick={()=>setHistory(history.filter(x=>x.id!==h.id))}><Trash2 size={16}/></button></td></tr>)}</tbody></table></div>}
-  </section>
+function Quote({settings,quotes,setQuotes,orders,setOrders,clients,setClients,models,setModels}){
+  const [form,setForm]=useState(()=>freshQuote(settings)),[saved,setSaved]=useState(false)
+  const update=(k,v)=>{setSaved(false);setForm({...form,[k]:v})},material=settings.materials.find(m=>m.id===form.material)||settings.materials[0]||{name:'Material',priceKg:0}
+  const calc=useMemo(()=>{const h=num(form.hours)+num(form.minutes)/60,materialCost=num(form.weight)/1000*num(material.priceKg),electricity=h*num(settings.printerWatts)/1000*num(settings.electricityPrice),wear=h*num(settings.wearPerHour),productionCost=materialCost+electricity+wear+num(form.labor)+num(form.extras),raw=productionCost*(1+num(form.profit)/100),step=Math.max(1,num(settings.roundTo)),total=Math.ceil(raw/step)*step;return{printHours:h,materialCost,electricity,wear,productionCost,profitAmount:total-productionCost,total,unit:total/Math.max(1,num(form.quantity))}},[form,material,settings])
+  const snapshot=()=>({id:uid(),folio:`COT-${Date.now().toString().slice(-7)}`,date:new Date().toISOString(),...form,materialName:material.name,...calc})
+  const ensureClient=()=>{const name=form.client.trim();if(name&&!clients.some(c=>c.name.toLowerCase()===name.toLowerCase()))setClients([{id:uid(),name,phone:'',email:'',notes:''},...clients])}
+  const save=()=>{const q=snapshot();setQuotes([q,...quotes]);ensureClient();setSaved(true);return q}
+  const order=()=>{const q=save();setOrders([{...q,id:uid(),quoteId:q.id,status:'pending',createdAt:new Date().toISOString(),dueDate:''},...orders]);alert('Cotización guardada y pedido creado.')}
+  const message=()=>encodeURIComponent(`*${settings.businessName||'A&E Studio Laser'}*\nCotización\nCliente: ${form.client||'—'}\nProyecto: ${form.project||'—'}\nMaterial: ${material.name}\nCantidad: ${form.quantity}\nPrecio por pieza: ${money(calc.unit)}\n*Total: ${money(calc.total)}*\nVigencia: ${settings.quoteValidity||15} días`)
+  const saveModel=()=>{if(!form.project.trim())return alert('Escribe el proyecto.');setModels([{id:uid(),name:form.project.trim(),material:form.material,weight:form.weight,hours:form.hours,minutes:form.minutes},...models]);alert('Modelo guardado.')}
+  const loadModel=id=>{const m=models.find(x=>x.id===id);if(m)setForm({...form,project:m.name,material:m.material,weight:m.weight,hours:m.hours,minutes:m.minutes})}
+  return <div className="quoteLayout"><Card title="Nueva cotización" subtitle="Captura solo los datos necesarios.">
+    {models.length>0&&<Field label="Cargar modelo guardado" full><select defaultValue="" onChange={e=>{loadModel(e.target.value);e.target.value=''}}><option value="">Seleccionar modelo…</option>{models.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></Field>}
+    <div className="formGrid"><Field label="Cliente"><input value={form.client} onChange={e=>update('client',e.target.value)} placeholder="Nombre del cliente"/></Field><Field label="Proyecto"><input value={form.project} onChange={e=>update('project',e.target.value)} placeholder="Ej. Llavero personalizado"/></Field>
+      <Field label="Material"><select value={form.material} onChange={e=>update('material',e.target.value)}>{settings.materials.map(m=><option key={m.id} value={m.id}>{m.name} — {money(m.priceKg)}/kg</option>)}</select></Field><Field label="Cantidad"><input type="number" min="1" value={form.quantity} onChange={e=>update('quantity',e.target.value)}/></Field>
+      <Field label="Peso total (g)"><input type="number" min="0" value={form.weight} onChange={e=>update('weight',e.target.value)}/></Field><div className="splitFields"><Field label="Horas"><input type="number" min="0" value={form.hours} onChange={e=>update('hours',e.target.value)}/></Field><Field label="Minutos"><input type="number" min="0" max="59" value={form.minutes} onChange={e=>update('minutes',e.target.value)}/></Field></div>
+      <Field label="Extras ($)"><input type="number" min="0" value={form.extras} onChange={e=>update('extras',e.target.value)}/></Field><Field label="Mano de obra ($)"><input type="number" min="0" value={form.labor} onChange={e=>update('labor',e.target.value)}/></Field><Field label={`Ganancia: ${form.profit}%`} full><input type="range" min="0" max="150" value={form.profit} onChange={e=>update('profit',e.target.value)}/></Field></div>
+    {saved&&<div className="success"><Check size={17}/>Cotización guardada</div>}<div className="actions"><button className="primary" onClick={save}><Save size={18}/>Guardar</button><button onClick={order}><ClipboardList size={18}/>Crear pedido</button><button onClick={()=>window.location.href=`https://wa.me/?text=${message()}`}><MessageCircle size={18}/>WhatsApp</button><button onClick={()=>window.print()}><Printer size={18}/>PDF / Imprimir</button><button onClick={saveModel}><Archive size={18}/>Guardar modelo</button><button onClick={()=>{setForm(freshQuote(settings));setSaved(false)}}><RotateCcw size={18}/>Nueva</button></div>
+  </Card><aside className="resultCard printArea"><img src="/logo-ae.png" className="printLogo" alt="A&E Studio Laser"/><span>Total sugerido</span><strong>{money(calc.total)}</strong><div className="unitPrice"><span>Precio por pieza</span><b>{money(calc.unit)}</b></div><h3>Desglose</h3><Line label="Material" value={calc.materialCost}/><Line label="Electricidad" value={calc.electricity}/><Line label="Desgaste" value={calc.wear}/><Line label="Mano de obra" value={form.labor}/><Line label="Extras" value={form.extras}/><Line label="Costo de producción" value={calc.productionCost} bold/><Line label="Ganancia" value={calc.profitAmount}/><small>Vigencia: {settings.quoteValidity||15} días</small></aside></div>
+}
+
+const labels={pending:'Pendiente',process:'En proceso',ready:'Listo',delivered:'Entregado',cancelled:'Cancelado'}
+function Status({value}){return <span className={`status ${value}`}>{labels[value]||value}</span>}
+function Orders({orders,setOrders}){
+  const [filter,setFilter]=useState('all'),shown=filter==='all'?orders:orders.filter(o=>o.status===filter),update=(id,p)=>setOrders(orders.map(o=>o.id===id?{...o,...p}:o))
+  return <Card title="Pedidos" subtitle="Seguimiento desde la cotización hasta la entrega."><div className="filters">{['all','pending','process','ready','delivered'].map(id=><button key={id} className={filter===id?'active':''} onClick={()=>setFilter(id)}>{id==='all'?'Todos':labels[id]}</button>)}</div>
+    {shown.length?<div className="cardsList">{shown.map(o=><article className="orderCard" key={o.id}><div><Status value={o.status}/><h3>{o.project||'Pedido'}</h3><p>{o.client||'Sin cliente'} · {o.quantity} pieza(s)</p></div><b className="orderTotal">{money(o.total)}</b><Field label="Estado"><select value={o.status} onChange={e=>update(o.id,{status:e.target.value})}>{Object.entries(labels).map(([id,l])=><option key={id} value={id}>{l}</option>)}</select></Field><Field label="Entrega"><input type="date" value={o.dueDate||''} onChange={e=>update(o.id,{dueDate:e.target.value})}/></Field><button className="iconButton danger" onClick={()=>confirm('¿Eliminar este pedido?')&&setOrders(orders.filter(x=>x.id!==o.id))}><Trash2 size={17}/></button></article>)}</div>:<Empty text="No hay pedidos en este estado."/>}</Card>
+}
+
+function Inventory({items,setItems}){
+  const [form,setForm]=useState(freshStock),[editing,setEditing]=useState(null),[search,setSearch]=useState(''),shown=items.filter(i=>`${i.name} ${i.category} ${i.supplier}`.toLowerCase().includes(search.toLowerCase()))
+  const save=()=>{if(!form.name.trim())return alert('Escribe el nombre.');const item={...form,id:editing||uid(),updatedAt:new Date().toISOString()};setItems(editing?items.map(i=>i.id===editing?item:i):[item,...items]);setForm(freshStock);setEditing(null)}
+  const investment=items.reduce((s,i)=>s+unitCost(i)*num(i.stock),0),potential=items.reduce((s,i)=>s+num(i.salePrice)*num(i.stock),0)
+  return <><div className="stats compact"><Stat label="Artículos" value={items.length} tone="blue"/><Stat label="Dinero invertido" value={money(investment)} tone="purple"/><Stat label="Venta potencial" value={money(potential)} tone="green"/><Stat label="Stock bajo" value={items.filter(i=>num(i.stock)<=num(i.minStock)).length} tone="orange"/></div>
+    <Card title={editing?'Editar artículo':'Agregar al inventario'} subtitle="Materia prima o productos como vasos y termos."><div className="formGrid"><Field label="Tipo"><select value={form.type} onChange={e=>setForm({...form,type:e.target.value})}><option value="product">Producto para venta</option><option value="raw">Materia prima</option></select></Field><Field label="Nombre"><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Ej. Termo 20 oz"/></Field><Field label="Categoría"><input value={form.category} onChange={e=>setForm({...form,category:e.target.value})}/></Field><Field label="Proveedor"><input value={form.supplier} onChange={e=>setForm({...form,supplier:e.target.value})}/></Field><Field label="Cantidad comprada"><input type="number" min="1" value={form.purchaseQty} onChange={e=>setForm({...form,purchaseQty:e.target.value})}/></Field><Field label="Costo total de compra"><input type="number" min="0" value={form.purchaseTotal} onChange={e=>setForm({...form,purchaseTotal:e.target.value})}/></Field><Field label="Existencia actual"><input type="number" min="0" value={form.stock} onChange={e=>setForm({...form,stock:e.target.value})}/></Field><Field label="Existencia mínima"><input type="number" min="0" value={form.minStock} onChange={e=>setForm({...form,minStock:e.target.value})}/></Field><Field label="Precio de venta por pieza"><input type="number" min="0" value={form.salePrice} onChange={e=>setForm({...form,salePrice:e.target.value})}/></Field><Field label="Fecha de compra"><input type="date" value={form.purchaseDate} onChange={e=>setForm({...form,purchaseDate:e.target.value})}/></Field></div><div className="calculated"><span>Costo unitario <b>{money(unitCost(form))}</b></span><span>Ganancia por unidad <b>{money(num(form.salePrice)-unitCost(form))}</b></span></div><div className="actions"><button className="primary" onClick={save}><Save size={18}/>{editing?'Guardar cambios':'Agregar'}</button>{editing&&<button onClick={()=>{setEditing(null);setForm(freshStock)}}>Cancelar</button>}</div></Card>
+    <Card title="Existencias" subtitle={`${shown.length} artículos`}><SearchBox value={search} setValue={setSearch} placeholder="Buscar material, producto o proveedor…"/>{shown.length?<div className="inventoryGrid">{shown.map(i=><article className="inventoryCard" key={i.id}><div className="inventoryIcon">{i.type==='raw'?<Box/>:<Package/>}</div><div className="grow"><div className="itemTitle"><h3>{i.name}</h3>{num(i.stock)<=num(i.minStock)&&<span className="stockAlert">Stock bajo</span>}</div><p>{i.category||(i.type==='raw'?'Materia prima':'Producto')} · {i.supplier||'Sin proveedor'}</p><div className="itemNumbers"><span>Existencia <b>{num(i.stock)}</b></span><span>Costo <b>{money(unitCost(i))}</b></span><span>Venta <b>{money(i.salePrice)}</b></span></div></div><div className="rowActions"><button onClick={()=>{setEditing(i.id);setForm(i);scrollTo({top:0,behavior:'smooth'})}}>Editar</button><button className="iconButton danger" onClick={()=>confirm('¿Eliminar este artículo?')&&setItems(items.filter(x=>x.id!==i.id))}><Trash2 size={16}/></button></div></article>)}</div>:<Empty text="Todavía no hay artículos registrados."/>}</Card></>
+}
+
+function Clients({clients,setClients}){
+  const [form,setForm]=useState(freshClient),[editing,setEditing]=useState(null),[search,setSearch]=useState(''),shown=clients.filter(c=>`${c.name} ${c.phone} ${c.email}`.toLowerCase().includes(search.toLowerCase()))
+  const save=()=>{if(!form.name.trim())return alert('Escribe el nombre.');const c={...form,id:editing||uid()};setClients(editing?clients.map(x=>x.id===editing?c:x):[c,...clients]);setForm(freshClient);setEditing(null)}
+  return <><Card title={editing?'Editar cliente':'Nuevo cliente'} subtitle="Guarda sus datos para futuras cotizaciones."><div className="formGrid"><Field label="Nombre"><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></Field><Field label="Teléfono / WhatsApp"><input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/></Field><Field label="Correo"><input type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></Field><Field label="Notas"><input value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})}/></Field></div><div className="actions"><button className="primary" onClick={save}><Save size={18}/>Guardar cliente</button>{editing&&<button onClick={()=>{setEditing(null);setForm(freshClient)}}>Cancelar</button>}</div></Card>
+    <Card title="Directorio" subtitle={`${shown.length} clientes`}><SearchBox value={search} setValue={setSearch} placeholder="Buscar cliente…"/>{shown.length?shown.map(c=><div className="listRow clientRow" key={c.id}><div className="avatar"><UserRound/></div><div className="grow"><b>{c.name}</b><span>{c.phone||c.email||'Sin contacto'}</span></div><button onClick={()=>{setEditing(c.id);setForm(c)}}>Editar</button><button className="iconButton danger" onClick={()=>confirm('¿Eliminar este cliente?')&&setClients(clients.filter(x=>x.id!==c.id))}><Trash2 size={16}/></button></div>):<Empty text="Aún no hay clientes."/>}</Card></>
+}
+
+function Quotes({quotes,setQuotes}){
+  const [search,setSearch]=useState(''),shown=quotes.filter(q=>`${q.client} ${q.project} ${q.folio}`.toLowerCase().includes(search.toLowerCase()))
+  return <Card title="Cotizaciones" subtitle={`${quotes.length} guardadas`}><SearchBox value={search} setValue={setSearch} placeholder="Buscar por cliente, proyecto o folio…"/>{shown.length?<div className="tableWrap"><table><thead><tr><th>Fecha</th><th>Folio</th><th>Cliente</th><th>Proyecto</th><th>Total</th><th/></tr></thead><tbody>{shown.map(q=><tr key={q.id}><td>{new Date(q.date).toLocaleDateString('es-MX')}</td><td>{q.folio||'—'}</td><td>{q.client||'—'}</td><td>{q.project||'—'}</td><td><b>{money(q.total)}</b></td><td><button className="iconButton danger" onClick={()=>confirm('¿Eliminar esta cotización?')&&setQuotes(quotes.filter(x=>x.id!==q.id))}><Trash2 size={16}/></button></td></tr>)}</tbody></table></div>:<Empty text="Todavía no hay cotizaciones."/>}</Card>
+}
+
+function Models({models,setModels,settings}){
+  const [form,setForm]=useState({name:'',material:settings.materials[0]?.id||'pla',weight:0,hours:0,minutes:0})
+  const save=()=>{if(!form.name.trim())return alert('Escribe el nombre.');setModels([{...form,id:uid()},...models]);setForm({...form,name:'',weight:0,hours:0,minutes:0})}
+  return <><Card title="Nuevo modelo frecuente" subtitle="Guarda diseños para cotizar más rápido."><div className="formGrid"><Field label="Nombre"><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></Field><Field label="Material"><select value={form.material} onChange={e=>setForm({...form,material:e.target.value})}>{settings.materials.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></Field><Field label="Peso (g)"><input type="number" value={form.weight} onChange={e=>setForm({...form,weight:e.target.value})}/></Field><div className="splitFields"><Field label="Horas"><input type="number" value={form.hours} onChange={e=>setForm({...form,hours:e.target.value})}/></Field><Field label="Minutos"><input type="number" value={form.minutes} onChange={e=>setForm({...form,minutes:e.target.value})}/></Field></div></div><div className="actions"><button className="primary" onClick={save}><Save size={18}/>Guardar modelo</button></div></Card>
+    <Card title="Biblioteca de modelos" subtitle={`${models.length} modelos`}>{models.length?<div className="modelGrid">{models.map(m=><article key={m.id}><div className="modelIcon"><Box/></div><h3>{m.name}</h3><p>{settings.materials.find(x=>x.id===m.material)?.name||'Material'} · {m.weight} g</p><span>{m.hours} h {m.minutes} min</span><button className="iconButton danger" onClick={()=>confirm('¿Eliminar este modelo?')&&setModels(models.filter(x=>x.id!==m.id))}><Trash2 size={16}/></button></article>)}</div>:<Empty text="Aún no hay modelos guardados."/>}</Card></>
 }
 
 function SettingsPage({settings,setSettings}){
-  const [draft,setDraft]=useState(settings)
-  useEffect(()=>setDraft(settings),[settings])
-  const updateMat=(id,k,v)=>setDraft(d=>({...d,materials:d.materials.map(m=>m.id===id?{...m,[k]:v}:m)}))
-  const addMat=()=>setDraft(d=>({...d,materials:[...d.materials,{id:uid(),name:'Nuevo material',priceKg:0}]}))
-  const reset=()=>setDraft(defaults)
-
-  return <section className="card">
-    <div className="title"><div><h2>Configuración</h2><p>Ajusta los costos usados por el cotizador.</p></div></div>
-    <div className="formGrid">
-      <Field label="Impresora"><input value={draft.printer} onChange={e=>setDraft({...draft,printer:e.target.value})}/></Field>
-      <Field label="Electricidad ($/kWh)"><input type="number" step="0.01" value={draft.electricityPrice} onChange={e=>setDraft({...draft,electricityPrice:e.target.value})}/></Field>
-      <Field label="Consumo de impresora (W)"><input type="number" value={draft.printerWatts} onChange={e=>setDraft({...draft,printerWatts:e.target.value})}/></Field>
-      <Field label="Desgaste por hora ($)"><input type="number" value={draft.wearPerHour} onChange={e=>setDraft({...draft,wearPerHour:e.target.value})}/></Field>
-      <Field label="Ganancia predeterminada (%)"><input type="number" value={draft.defaultProfit} onChange={e=>setDraft({...draft,defaultProfit:e.target.value})}/></Field>
-      <Field label="Redondear precios a ($)"><input type="number" value={draft.roundTo} onChange={e=>setDraft({...draft,roundTo:e.target.value})}/></Field>
-    </div>
-
-    <div className="materialsHead"><h3>Materiales de impresión 3D</h3><button onClick={addMat}>Agregar material</button></div>
-    <div className="materials">
-      {draft.materials.map(m=><div className="material" key={m.id}>
-        <input value={m.name} onChange={e=>updateMat(m.id,'name',e.target.value)}/>
-        <input type="number" value={m.priceKg} onChange={e=>updateMat(m.id,'priceKg',e.target.value)}/>
-        <button className="icon" onClick={()=>setDraft(d=>({...d,materials:d.materials.filter(x=>x.id!==m.id)}))}><Trash2 size={17}/></button>
-      </div>)}
-    </div>
-
-    <div className="actions">
-      <button className="primary" onClick={()=>{setSettings(draft);alert('Configuración guardada.')}}><Save size={18}/>Guardar configuración</button>
-      <button onClick={reset}><RotateCcw size={18}/>Restaurar valores</button>
-    </div>
-  </section>
+  const [draft,setDraft]=useState(settings);useEffect(()=>setDraft(settings),[settings])
+  const mat=(id,k,v)=>setDraft({...draft,materials:draft.materials.map(m=>m.id===id?{...m,[k]:v}:m)})
+  return <Card title="Configuración" subtitle="Ajusta los costos del cotizador."><div className="formGrid"><Field label="Nombre del negocio"><input value={draft.businessName||''} onChange={e=>setDraft({...draft,businessName:e.target.value})}/></Field><Field label="Teléfono / WhatsApp"><input value={draft.phone||''} onChange={e=>setDraft({...draft,phone:e.target.value})}/></Field><Field label="Impresora"><input value={draft.printer} onChange={e=>setDraft({...draft,printer:e.target.value})}/></Field><Field label="Electricidad ($/kWh)"><input type="number" step=".01" value={draft.electricityPrice} onChange={e=>setDraft({...draft,electricityPrice:e.target.value})}/></Field><Field label="Consumo (W)"><input type="number" value={draft.printerWatts} onChange={e=>setDraft({...draft,printerWatts:e.target.value})}/></Field><Field label="Desgaste por hora"><input type="number" value={draft.wearPerHour} onChange={e=>setDraft({...draft,wearPerHour:e.target.value})}/></Field><Field label="Ganancia predeterminada (%)"><input type="number" value={draft.defaultProfit} onChange={e=>setDraft({...draft,defaultProfit:e.target.value})}/></Field><Field label="Redondear a ($)"><input type="number" value={draft.roundTo} onChange={e=>setDraft({...draft,roundTo:e.target.value})}/></Field><Field label="Vigencia (días)"><input type="number" value={draft.quoteValidity||15} onChange={e=>setDraft({...draft,quoteValidity:e.target.value})}/></Field></div>
+    <div className="sectionHeader"><div><h3>Materiales de impresión 3D</h3><p>Precio por kilogramo</p></div><button onClick={()=>setDraft({...draft,materials:[...draft.materials,{id:uid(),name:'Nuevo material',priceKg:0}]})}><Plus size={17}/>Agregar</button></div><div className="materials">{draft.materials.map(m=><div className="materialRow" key={m.id}><input value={m.name} onChange={e=>mat(m.id,'name',e.target.value)}/><input type="number" value={m.priceKg} onChange={e=>mat(m.id,'priceKg',e.target.value)}/><button className="iconButton danger" onClick={()=>setDraft({...draft,materials:draft.materials.filter(x=>x.id!==m.id)})}><Trash2 size={17}/></button></div>)}</div>
+    <div className="actions"><button className="primary" onClick={()=>{setSettings(draft);alert('Configuración guardada.')}}><Save size={18}/>Guardar configuración</button><button onClick={()=>setDraft(defaults)}><RotateCcw size={18}/>Restaurar</button></div><div className="syncNotice"><Archive/><div><b>Sincronización entre dispositivos</b><p>Actualmente se guarda en este dispositivo. La estructura está lista para conectar una base de datos posteriormente.</p></div></div></Card>
 }
 
-function Field({label,full,children}){return <label className={`field ${full?'full':''}`}><span>{label}</span>{children}</label>}
+function Card({title,subtitle,children}){return <section className="card"><div className="cardTitle"><div><h2>{title}</h2>{subtitle&&<p>{subtitle}</p>}</div></div>{children}</section>}
+function Field({label,children,full}){return <label className={`field ${full?'full':''}`}><span>{label}</span>{children}</label>}
 function Line({label,value,bold}){return <div className={`line ${bold?'bold':''}`}><span>{label}</span><b>{money(value)}</b></div>}
-
+function Stat({label,value,tone}){return <article className={`stat ${tone}`}><span>{label}</span><strong>{value}</strong></article>}
+function Empty({text}){return <div className="empty"><Archive/><p>{text}</p></div>}
+function SearchBox({value,setValue,placeholder}){return <label className="searchBox"><Search size={18}/><input value={value} onChange={e=>setValue(e.target.value)} placeholder={placeholder}/></label>}
 createRoot(document.getElementById('root')).render(<App/>)
