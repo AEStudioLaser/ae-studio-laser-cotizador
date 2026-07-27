@@ -27,3 +27,8 @@ PUBLICACIÓN EN GITHUB
 4. Deben aparecer package.json, index.html, vite.config.js, src y public.
 5. Pulsa Commit changes.
 6. Vercel publicará la actualización automáticamente.
+
+
+CORRECCIÓN DE WHATSAPP
+- Se cambió la apertura en ventana nueva por apertura directa.
+- Esto evita que Safari o la app instalada bloqueen el botón.
