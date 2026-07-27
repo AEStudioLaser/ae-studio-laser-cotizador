@@ -1,17 +1,21 @@
 import React, {useEffect, useMemo, useState} from 'react'
 import {createRoot} from 'react-dom/client'
 import {
-  Archive, BarChart3, Box, Calculator, Check, ClipboardList, FileText,
+  Archive, BarChart3, Box, Calculator, Check, ClipboardList, FileText, Flame,
   Menu, MessageCircle, Package, Plus, Printer, RotateCcw, Save, Search,
-  Settings, Trash2, UserRound, Users, X
+  Scissors, Settings, Trash2, UserRound, Users, X
 } from 'lucide-react'
 import './styles.css'
+import './service.css'
 
 const money=v=>new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(Number(v)||0)
 const num=v=>Number(v)||0
 const uid=()=>crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`
 const today=()=>new Date().toISOString().slice(0,10)
-const defaults={businessName:'A&E Studio Laser',phone:'',printer:'Bambu Lab A1',electricityPrice:1.2,printerWatts:90,wearPerHour:5,defaultProfit:50,roundTo:5,quoteValidity:15,materials:[{id:'pla',name:'PLA',priceKg:298},{id:'petg',name:'PETG',priceKg:340}]}
+const defaults={businessName:'A&E Studio Laser',phone:'',printer:'Bambu Lab A1',electricityPrice:1.2,printerWatts:90,wearPerHour:5,laserRate:80,cricutRate:40,defaultProfit:50,roundTo:5,quoteValidity:15,
+  materials:[{id:'pla',name:'PLA',priceKg:298},{id:'petg',name:'PETG',priceKg:340}],
+  laserMaterials:[{id:'mdf3',name:'MDF 3 mm',sheetWidth:600,sheetHeight:400,sheetCost:80,waste:12},{id:'acrylic3',name:'Acrílico 3 mm',sheetWidth:600,sheetHeight:400,sheetCost:240,waste:15}],
+  cricutMaterials:[{id:'vinyl',name:'Vinil adhesivo',sheetWidth:300,sheetHeight:1000,sheetCost:65,waste:10},{id:'sticker',name:'Papel sticker A4',sheetWidth:210,sheetHeight:297,sheetCost:12,waste:12},{id:'cardstock',name:'Cartulina 12 × 12',sheetWidth:305,sheetHeight:305,sheetCost:15,waste:12}]}
 const freshQuote=s=>({client:'',project:'',material:s.materials[0]?.id||'pla',quantity:1,weight:50,hours:4,minutes:0,extras:0,labor:0,profit:num(s.defaultProfit)||50})
 const freshStock={type:'product',name:'',category:'',supplier:'',purchaseQty:1,purchaseTotal:0,stock:1,minStock:0,salePrice:0,purchaseDate:today()}
 const freshClient={name:'',phone:'',email:'',notes:''}
@@ -32,7 +36,7 @@ function App(){
   const [clients,setClients]=useLocal('ae_clients_v5',[])
   const [models,setModels]=useLocal('ae_models_v5',[])
   useEffect(()=>{'serviceWorker'in navigator&&navigator.serviceWorker.register('/sw.js').catch(()=>{})},[])
-  const nav=[['dashboard','Resumen',BarChart3],['quote','Cotizar',Calculator],['orders','Pedidos',ClipboardList],['inventory','Inventario',Package],['clients','Clientes',Users],['quotes','Cotizaciones',FileText],['models','Modelos',Box],['settings','Configuración',Settings]]
+  const nav=[['dashboard','Resumen',BarChart3],['quote','Impresión 3D',Calculator],['laser','Láser',Flame],['cricut','Cricut',Scissors],['orders','Pedidos',ClipboardList],['inventory','Inventario',Package],['clients','Clientes',Users],['quotes','Cotizaciones',FileText],['models','Modelos 3D',Box],['settings','Configuración',Settings]]
   const go=id=>{setPage(id);setOpen(false)}
   return <div className="appShell">
     <aside className={`sidebar ${open?'open':''}`}><div className="brand"><img src="/logo-ae.png" alt="A&E Studio Laser"/><div><strong>A&E Studio Laser</strong><span>Gestión del taller</span></div></div>
@@ -42,6 +46,8 @@ function App(){
       <div className="content">
         {page==='dashboard'&&<Dashboard orders={orders} inventory={inventory} quotes={quotes} go={go}/>}
         {page==='quote'&&<Quote settings={settings} quotes={quotes} setQuotes={setQuotes} orders={orders} setOrders={setOrders} clients={clients} setClients={setClients} models={models} setModels={setModels}/>}
+        {page==='laser'&&<ServiceQuote service="laser" settings={settings} quotes={quotes} setQuotes={setQuotes} orders={orders} setOrders={setOrders} clients={clients} setClients={setClients}/>}
+        {page==='cricut'&&<ServiceQuote service="cricut" settings={settings} quotes={quotes} setQuotes={setQuotes} orders={orders} setOrders={setOrders} clients={clients} setClients={setClients}/>}
         {page==='orders'&&<Orders orders={orders} setOrders={setOrders}/>}
         {page==='inventory'&&<Inventory items={inventory} setItems={setInventory}/>}
         {page==='clients'&&<Clients clients={clients} setClients={setClients}/>}
@@ -84,6 +90,37 @@ function Quote({settings,quotes,setQuotes,orders,setOrders,clients,setClients,mo
   </Card><aside className="resultCard printArea"><img src="/logo-ae.png" className="printLogo" alt="A&E Studio Laser"/><span>Total sugerido</span><strong>{money(calc.total)}</strong><div className="unitPrice"><span>Precio por pieza</span><b>{money(calc.unit)}</b></div><h3>Desglose</h3><Line label="Material" value={calc.materialCost}/><Line label="Electricidad" value={calc.electricity}/><Line label="Desgaste" value={calc.wear}/><Line label="Mano de obra" value={form.labor}/><Line label="Extras" value={form.extras}/><Line label="Costo de producción" value={calc.productionCost} bold/><Line label="Ganancia" value={calc.profitAmount}/><small>Vigencia: {settings.quoteValidity||15} días</small></aside></div>
 }
 
+function ServiceQuote({service,settings,quotes,setQuotes,orders,setOrders,clients,setClients}){
+  const isLaser=service==='laser',catalog=(isLaser?settings.laserMaterials:settings.cricutMaterials)|| (isLaser?defaults.laserMaterials:defaults.cricutMaterials)
+  const initial={client:'',project:'',jobType:isLaser?'cut':'vinyl',material:catalog[0]?.id||'',quantity:1,width:100,height:100,hours:0,minutes:isLaser?20:10,labor:0,design:0,assembly:0,extras:0,profit:num(settings.defaultProfit)||50,manualMaterial:'',advanced:false}
+  const [form,setForm]=useState(initial),[saved,setSaved]=useState(false)
+  const update=(k,v)=>{setSaved(false);setForm({...form,[k]:v})},material=catalog.find(m=>m.id===form.material)||catalog[0]||{name:'Material',sheetWidth:1,sheetHeight:1,sheetCost:0,waste:10}
+  const calc=useMemo(()=>{
+    const w=Math.max(1,num(form.width)),h=Math.max(1,num(form.height)),qty=Math.max(1,num(form.quantity)),sw=Math.max(1,num(material.sheetWidth)),sh=Math.max(1,num(material.sheetHeight)),waste=Math.max(0,num(material.waste))/100
+    const across=Math.max(1,Math.floor(sw/w)),down=Math.max(1,Math.floor(sh/h)),grid=across*down,areaCapacity=Math.max(1,Math.floor(sw*sh/(w*h*(1+waste)))),perSheet=Math.max(1,Math.min(grid,areaCapacity)),sheets=Math.ceil(qty/perSheet)
+    const automaticMaterial=sheets*num(material.sheetCost),materialCost=form.manualMaterial===''?automaticMaterial:num(form.manualMaterial),machineHours=num(form.hours)+num(form.minutes)/60,rate=isLaser?num(settings.laserRate||defaults.laserRate):num(settings.cricutRate||defaults.cricutRate),machineCost=machineHours*rate,productionCost=materialCost+machineCost+num(form.labor)+num(form.design)+num(form.assembly)+num(form.extras),raw=productionCost*(1+num(form.profit)/100),step=Math.max(1,num(settings.roundTo)),total=Math.ceil(raw/step)*step
+    return{perSheet,sheets,materialCost,machineHours,machineCost,productionCost,total,unit:total/qty,profitAmount:total-productionCost}
+  },[form,material,isLaser,settings])
+  const typeName=isLaser?({cut:'Corte',engrave:'Grabado',both:'Corte y grabado'}[form.jobType]):({vinyl:'Vinil',stickers:'Stickers',paper:'Papel/cartulina',printcut:'Impresión y corte'}[form.jobType])
+  const snapshot=()=>({id:uid(),folio:`COT-${Date.now().toString().slice(-7)}`,date:new Date().toISOString(),service:isLaser?'Láser':'Cricut',...form,materialName:material.name,typeName,...calc})
+  const client=()=>{const n=form.client.trim();if(n&&!clients.some(c=>c.name.toLowerCase()===n.toLowerCase()))setClients([{id:uid(),name:n,phone:'',email:'',notes:''},...clients])}
+  const save=()=>{const q=snapshot();setQuotes([q,...quotes]);client();setSaved(true);return q}
+  const order=()=>{const q=save();setOrders([{...q,id:uid(),quoteId:q.id,status:'pending',createdAt:new Date().toISOString(),dueDate:''},...orders]);alert('Cotización guardada y pedido creado.')}
+  const message=()=>encodeURIComponent(`*${settings.businessName||'A&E Studio Laser'}*\nCotización de ${isLaser?'láser':'Cricut'}\nCliente: ${form.client||'—'}\nProyecto: ${form.project||'—'}\nTrabajo: ${typeName}\nMedidas: ${form.width} × ${form.height} mm\nCantidad: ${form.quantity}\nPrecio por pieza: ${money(calc.unit)}\n*Total: ${money(calc.total)}*\nVigencia: ${settings.quoteValidity||15} días`)
+  return <div className="quoteLayout"><Card title={`Cotizador ${isLaser?'láser':'Cricut'}`} subtitle="Medidas y tiempo de máquina para un resultado realista."><div className="formGrid">
+    <Field label="Cliente"><input value={form.client} onChange={e=>update('client',e.target.value)} placeholder="Nombre del cliente"/></Field><Field label="Proyecto"><input value={form.project} onChange={e=>update('project',e.target.value)} placeholder={isLaser?'Ej. Caja para regalo':'Ej. Stickers personalizados'}/></Field>
+    <Field label="Tipo de trabajo"><select value={form.jobType} onChange={e=>update('jobType',e.target.value)}>{isLaser?<><option value="cut">Corte</option><option value="engrave">Grabado</option><option value="both">Corte y grabado</option></>:<><option value="vinyl">Vinil</option><option value="stickers">Stickers</option><option value="paper">Papel / cartulina</option><option value="printcut">Impresión y corte</option></>}</select></Field>
+    <Field label="Material"><select value={form.material} onChange={e=>update('material',e.target.value)}>{catalog.map(m=><option key={m.id} value={m.id}>{m.name} — {money(m.sheetCost)}</option>)}</select></Field>
+    <Field label="Cantidad"><input type="number" min="1" value={form.quantity} onChange={e=>update('quantity',e.target.value)}/></Field><div className="splitFields"><Field label="Ancho (mm)"><input type="number" min="1" value={form.width} onChange={e=>update('width',e.target.value)}/></Field><Field label="Alto (mm)"><input type="number" min="1" value={form.height} onChange={e=>update('height',e.target.value)}/></Field></div>
+    <div className="splitFields"><Field label="Horas de máquina"><input type="number" min="0" value={form.hours} onChange={e=>update('hours',e.target.value)}/></Field><Field label="Minutos"><input type="number" min="0" max="59" value={form.minutes} onChange={e=>update('minutes',e.target.value)}/></Field></div><Field label="Mano de obra ($)"><input type="number" min="0" value={form.labor} onChange={e=>update('labor',e.target.value)}/></Field>
+    <Field label={`Ganancia: ${form.profit}%`} full><input type="range" min="0" max="150" value={form.profit} onChange={e=>update('profit',e.target.value)}/></Field></div>
+    <button className="detailsToggle" onClick={()=>update('advanced',!form.advanced)}>{form.advanced?'Ocultar detalles':'Más detalles opcionales'}</button>
+    {form.advanced&&<div className="formGrid advancedBox"><Field label="Diseño / preparación ($)"><input type="number" min="0" value={form.design} onChange={e=>update('design',e.target.value)}/></Field><Field label="Armado / acabado ($)"><input type="number" min="0" value={form.assembly} onChange={e=>update('assembly',e.target.value)}/></Field><Field label="Extras ($)"><input type="number" min="0" value={form.extras} onChange={e=>update('extras',e.target.value)}/></Field><Field label="Costo de material manual"><input type="number" min="0" value={form.manualMaterial} placeholder={money(calc.materialCost)} onChange={e=>update('manualMaterial',e.target.value)}/></Field></div>}
+    <div className="usageNote"><b>{calc.perSheet} pieza(s) por hoja · {calc.sheets} hoja(s)</b><span>Estimación con {material.waste||0}% de desperdicio. Puedes ajustar el costo en Más detalles.</span></div>
+    {saved&&<div className="success"><Check size={17}/>Cotización guardada</div>}<div className="actions"><button className="primary" onClick={save}><Save size={18}/>Guardar</button><button onClick={order}><ClipboardList size={18}/>Crear pedido</button><button onClick={()=>window.location.href=`https://wa.me/?text=${message()}`}><MessageCircle size={18}/>WhatsApp</button><button onClick={()=>window.print()}><Printer size={18}/>PDF / Imprimir</button><button onClick={()=>{setForm(initial);setSaved(false)}}><RotateCcw size={18}/>Nueva</button></div>
+  </Card><aside className="resultCard printArea"><img src="/logo-ae.png" className="printLogo" alt="A&E Studio Laser"/><span>Total sugerido</span><strong>{money(calc.total)}</strong><div className="unitPrice"><span>Precio por pieza</span><b>{money(calc.unit)}</b></div><h3>Desglose</h3><Line label="Material" value={calc.materialCost}/><Line label="Tiempo de máquina" value={calc.machineCost}/><Line label="Diseño" value={form.design}/><Line label="Mano de obra" value={form.labor}/><Line label="Armado / acabado" value={form.assembly}/><Line label="Extras" value={form.extras}/><Line label="Costo de producción" value={calc.productionCost} bold/><Line label="Ganancia" value={calc.profitAmount}/><small>{typeName} · {form.width} × {form.height} mm</small></aside></div>
+}
+
 const labels={pending:'Pendiente',process:'En proceso',ready:'Listo',delivered:'Entregado',cancelled:'Cancelado'}
 function Status({value}){return <span className={`status ${value}`}>{labels[value]||value}</span>}
 function Orders({orders,setOrders}){
@@ -110,7 +147,7 @@ function Clients({clients,setClients}){
 
 function Quotes({quotes,setQuotes}){
   const [search,setSearch]=useState(''),shown=quotes.filter(q=>`${q.client} ${q.project} ${q.folio}`.toLowerCase().includes(search.toLowerCase()))
-  return <Card title="Cotizaciones" subtitle={`${quotes.length} guardadas`}><SearchBox value={search} setValue={setSearch} placeholder="Buscar por cliente, proyecto o folio…"/>{shown.length?<div className="tableWrap"><table><thead><tr><th>Fecha</th><th>Folio</th><th>Cliente</th><th>Proyecto</th><th>Total</th><th/></tr></thead><tbody>{shown.map(q=><tr key={q.id}><td>{new Date(q.date).toLocaleDateString('es-MX')}</td><td>{q.folio||'—'}</td><td>{q.client||'—'}</td><td>{q.project||'—'}</td><td><b>{money(q.total)}</b></td><td><button className="iconButton danger" onClick={()=>confirm('¿Eliminar esta cotización?')&&setQuotes(quotes.filter(x=>x.id!==q.id))}><Trash2 size={16}/></button></td></tr>)}</tbody></table></div>:<Empty text="Todavía no hay cotizaciones."/>}</Card>
+  return <Card title="Cotizaciones" subtitle={`${quotes.length} guardadas`}><SearchBox value={search} setValue={setSearch} placeholder="Buscar por cliente, proyecto o folio…"/>{shown.length?<div className="tableWrap"><table><thead><tr><th>Fecha</th><th>Servicio</th><th>Folio</th><th>Cliente</th><th>Proyecto</th><th>Total</th><th/></tr></thead><tbody>{shown.map(q=><tr key={q.id}><td>{new Date(q.date).toLocaleDateString('es-MX')}</td><td>{q.service||'Impresión 3D'}</td><td>{q.folio||'—'}</td><td>{q.client||'—'}</td><td>{q.project||'—'}</td><td><b>{money(q.total)}</b></td><td><button className="iconButton danger" onClick={()=>confirm('¿Eliminar esta cotización?')&&setQuotes(quotes.filter(x=>x.id!==q.id))}><Trash2 size={16}/></button></td></tr>)}</tbody></table></div>:<Empty text="Todavía no hay cotizaciones."/>}</Card>
 }
 
 function Models({models,setModels,settings}){
@@ -123,9 +160,17 @@ function Models({models,setModels,settings}){
 function SettingsPage({settings,setSettings}){
   const [draft,setDraft]=useState(settings);useEffect(()=>setDraft(settings),[settings])
   const mat=(id,k,v)=>setDraft({...draft,materials:draft.materials.map(m=>m.id===id?{...m,[k]:v}:m)})
-  return <Card title="Configuración" subtitle="Ajusta los costos del cotizador."><div className="formGrid"><Field label="Nombre del negocio"><input value={draft.businessName||''} onChange={e=>setDraft({...draft,businessName:e.target.value})}/></Field><Field label="Teléfono / WhatsApp"><input value={draft.phone||''} onChange={e=>setDraft({...draft,phone:e.target.value})}/></Field><Field label="Impresora"><input value={draft.printer} onChange={e=>setDraft({...draft,printer:e.target.value})}/></Field><Field label="Electricidad ($/kWh)"><input type="number" step=".01" value={draft.electricityPrice} onChange={e=>setDraft({...draft,electricityPrice:e.target.value})}/></Field><Field label="Consumo (W)"><input type="number" value={draft.printerWatts} onChange={e=>setDraft({...draft,printerWatts:e.target.value})}/></Field><Field label="Desgaste por hora"><input type="number" value={draft.wearPerHour} onChange={e=>setDraft({...draft,wearPerHour:e.target.value})}/></Field><Field label="Ganancia predeterminada (%)"><input type="number" value={draft.defaultProfit} onChange={e=>setDraft({...draft,defaultProfit:e.target.value})}/></Field><Field label="Redondear a ($)"><input type="number" value={draft.roundTo} onChange={e=>setDraft({...draft,roundTo:e.target.value})}/></Field><Field label="Vigencia (días)"><input type="number" value={draft.quoteValidity||15} onChange={e=>setDraft({...draft,quoteValidity:e.target.value})}/></Field></div>
+  return <Card title="Configuración" subtitle="Ajusta los costos del cotizador."><div className="formGrid"><Field label="Nombre del negocio"><input value={draft.businessName||''} onChange={e=>setDraft({...draft,businessName:e.target.value})}/></Field><Field label="Teléfono / WhatsApp"><input value={draft.phone||''} onChange={e=>setDraft({...draft,phone:e.target.value})}/></Field><Field label="Impresora"><input value={draft.printer} onChange={e=>setDraft({...draft,printer:e.target.value})}/></Field><Field label="Electricidad ($/kWh)"><input type="number" step=".01" value={draft.electricityPrice} onChange={e=>setDraft({...draft,electricityPrice:e.target.value})}/></Field><Field label="Consumo (W)"><input type="number" value={draft.printerWatts} onChange={e=>setDraft({...draft,printerWatts:e.target.value})}/></Field><Field label="Desgaste 3D por hora"><input type="number" value={draft.wearPerHour} onChange={e=>setDraft({...draft,wearPerHour:e.target.value})}/></Field><Field label="Láser: costo por hora"><input type="number" value={draft.laserRate??defaults.laserRate} onChange={e=>setDraft({...draft,laserRate:e.target.value})}/></Field><Field label="Cricut: costo por hora"><input type="number" value={draft.cricutRate??defaults.cricutRate} onChange={e=>setDraft({...draft,cricutRate:e.target.value})}/></Field><Field label="Ganancia predeterminada (%)"><input type="number" value={draft.defaultProfit} onChange={e=>setDraft({...draft,defaultProfit:e.target.value})}/></Field><Field label="Redondear a ($)"><input type="number" value={draft.roundTo} onChange={e=>setDraft({...draft,roundTo:e.target.value})}/></Field><Field label="Vigencia (días)"><input type="number" value={draft.quoteValidity||15} onChange={e=>setDraft({...draft,quoteValidity:e.target.value})}/></Field></div>
     <div className="sectionHeader"><div><h3>Materiales de impresión 3D</h3><p>Precio por kilogramo</p></div><button onClick={()=>setDraft({...draft,materials:[...draft.materials,{id:uid(),name:'Nuevo material',priceKg:0}]})}><Plus size={17}/>Agregar</button></div><div className="materials">{draft.materials.map(m=><div className="materialRow" key={m.id}><input value={m.name} onChange={e=>mat(m.id,'name',e.target.value)}/><input type="number" value={m.priceKg} onChange={e=>mat(m.id,'priceKg',e.target.value)}/><button className="iconButton danger" onClick={()=>setDraft({...draft,materials:draft.materials.filter(x=>x.id!==m.id)})}><Trash2 size={17}/></button></div>)}</div>
+    <SheetCatalog title="Materiales de láser" list={draft.laserMaterials||defaults.laserMaterials} onChange={list=>setDraft({...draft,laserMaterials:list})}/>
+    <SheetCatalog title="Materiales de Cricut" list={draft.cricutMaterials||defaults.cricutMaterials} onChange={list=>setDraft({...draft,cricutMaterials:list})}/>
     <div className="actions"><button className="primary" onClick={()=>{setSettings(draft);alert('Configuración guardada.')}}><Save size={18}/>Guardar configuración</button><button onClick={()=>setDraft(defaults)}><RotateCcw size={18}/>Restaurar</button></div><div className="syncNotice"><Archive/><div><b>Sincronización entre dispositivos</b><p>Actualmente se guarda en este dispositivo. La estructura está lista para conectar una base de datos posteriormente.</p></div></div></Card>
+}
+
+function SheetCatalog({title,list,onChange}){
+  const update=(id,key,value)=>onChange(list.map(m=>m.id===id?{...m,[key]:value}:m))
+  return <><div className="sectionHeader"><div><h3>{title}</h3><p>Medidas en milímetros y costo por hoja o tramo</p></div><button onClick={()=>onChange([...list,{id:uid(),name:'Nuevo material',sheetWidth:300,sheetHeight:300,sheetCost:0,waste:10}])}><Plus size={17}/>Agregar</button></div>
+    <div className="sheetMaterials">{list.map(m=><div className="sheetRow" key={m.id}><input value={m.name} onChange={e=>update(m.id,'name',e.target.value)} placeholder="Material"/><input type="number" value={m.sheetWidth} onChange={e=>update(m.id,'sheetWidth',e.target.value)} title="Ancho mm" placeholder="Ancho"/><input type="number" value={m.sheetHeight} onChange={e=>update(m.id,'sheetHeight',e.target.value)} title="Alto mm" placeholder="Alto"/><input type="number" value={m.sheetCost} onChange={e=>update(m.id,'sheetCost',e.target.value)} title="Costo" placeholder="Costo"/><input type="number" value={m.waste} onChange={e=>update(m.id,'waste',e.target.value)} title="Desperdicio %" placeholder="%"/><button className="iconButton danger" onClick={()=>onChange(list.filter(x=>x.id!==m.id))}><Trash2 size={17}/></button></div>)}</div></>
 }
 
 function Card({title,subtitle,children}){return <section className="card"><div className="cardTitle"><div><h2>{title}</h2>{subtitle&&<p>{subtitle}</p>}</div></div>{children}</section>}
