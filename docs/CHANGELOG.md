@@ -25,6 +25,9 @@ Todos los cambios relevantes de A&E Studio Maker se documentan aquí.
 - Se conectó el diseño 3D con el cotizador existente sin alterar sus fórmulas.
 - Se añadieron siete pruebas automáticas de validación y generación.
 - La vista previa de Vercel compiló correctamente desde la rama de trabajo.
+- Se comprobó que clientes, inventario y pedidos existentes aparecen en Diseño creativo.
+- Los enlaces de Canva se convirtieron en enlaces HTTPS estándar y se verificó su apertura.
+- Se verificaron la copia del código OpenSCAD y la confirmación de descarga del archivo `.scad`.
 
 ### Limitaciones
 
