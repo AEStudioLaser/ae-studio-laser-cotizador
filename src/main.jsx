@@ -1,13 +1,15 @@
-import React, {useEffect, useMemo, useState} from 'react'
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {createRoot} from 'react-dom/client'
 import {
-  Archive, BarChart3, Box, Calculator, Check, ClipboardList, FileText, Flame,
-  Menu, MessageCircle, Package, Plus, Printer, RotateCcw, Save, Search,
-  Scissors, Settings, Trash2, UserRound, Users, X
+  Archive, BarChart3, Box, Calculator, Check, ClipboardList, Cloud, CloudOff,
+  FileText, Flame, LogIn, LogOut, Menu, MessageCircle, Package, Plus, Printer,
+  RefreshCw, RotateCcw, Save, Search, Scissors, Settings, Trash2, UserRound,
+  Users, Wifi, X
 } from 'lucide-react'
 import './styles.css'
 import './service.css'
 import {blankCatalogProduct, defaultCatalog} from './catalogData'
+import {cloud, isCloudConfigured} from './cloud'
 
 const money=v=>new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(Number(v)||0)
 const num=v=>Number(v)||0
@@ -38,12 +40,84 @@ function App(){
   const [catalog,setCatalog]=useLocal('ae_catalog_v1',defaultCatalog)
   const [clients,setClients]=useLocal('ae_clients_v5',[])
   const [models,setModels]=useLocal('ae_models_v5',[])
+  const [session,setSession]=useState(null),[cloudReady,setCloudReady]=useState(false)
+  const [syncStatus,setSyncStatus]=useState(isCloudConfigured?'signed-out':'local'),[lastSynced,setLastSynced]=useState('')
+  const skipUpload=useRef(false),stateRef=useRef(null)
+  const deviceId=useMemo(()=>{let id=localStorage.getItem('ae_device_id');if(!id){id=uid();localStorage.setItem('ae_device_id',id)}return id},[])
+  const cloudState=useMemo(()=>({version:1,settings,quotes,orders,inventory,catalog,clients,models}),[settings,quotes,orders,inventory,catalog,clients,models])
+  stateRef.current=cloudState
+
+  const applyCloudState=useCallback(payload=>{
+    if(!payload||typeof payload!=='object')return
+    skipUpload.current=true
+    if(payload.settings)setSettings({...defaults,...payload.settings})
+    if(Array.isArray(payload.quotes))setQuotes(payload.quotes)
+    if(Array.isArray(payload.orders))setOrders(payload.orders)
+    if(Array.isArray(payload.inventory))setInventory(payload.inventory)
+    if(Array.isArray(payload.catalog))setCatalog(payload.catalog)
+    if(Array.isArray(payload.clients))setClients(payload.clients)
+    if(Array.isArray(payload.models))setModels(payload.models)
+  },[setSettings,setQuotes,setOrders,setInventory,setCatalog,setClients,setModels])
+
+  const pushCloud=useCallback(async()=>{
+    if(!cloud||!session?.user)return
+    setSyncStatus(navigator.onLine?'syncing':'offline')
+    if(!navigator.onLine)return
+    const {error}=await cloud.from('business_state').upsert({
+      user_id:session.user.id,payload:stateRef.current,device_id:deviceId,updated_at:new Date().toISOString()
+    },{onConflict:'user_id'})
+    if(error){setSyncStatus('error');throw error}
+    setSyncStatus('synced');setLastSynced(new Date().toISOString())
+  },[session?.user?.id,deviceId])
+
+  const pullCloud=useCallback(async()=>{
+    if(!cloud||!session?.user)return
+    setSyncStatus(navigator.onLine?'syncing':'offline')
+    if(!navigator.onLine)return
+    const {data,error}=await cloud.from('business_state').select('payload,updated_at').eq('user_id',session.user.id).maybeSingle()
+    if(error){setSyncStatus('error');throw error}
+    if(data?.payload)applyCloudState(data.payload)
+    else await pushCloud()
+    setCloudReady(true);setSyncStatus('synced');setLastSynced(data?.updated_at||new Date().toISOString())
+  },[session?.user?.id,applyCloudState,pushCloud])
+
+  useEffect(()=>{
+    if(!cloud)return
+    cloud.auth.getSession().then(({data})=>setSession(data.session||null))
+    const {data}=cloud.auth.onAuthStateChange((_event,next)=>setSession(next))
+    return()=>data.subscription.unsubscribe()
+  },[])
+  useEffect(()=>{if(!session?.user){setCloudReady(false);setSyncStatus(isCloudConfigured?'signed-out':'local');return}pullCloud().catch(()=>{})},[session?.user?.id])
+  useEffect(()=>{
+    if(!cloudReady||!session?.user)return
+    if(skipUpload.current){skipUpload.current=false;return}
+    setSyncStatus(navigator.onLine?'pending':'offline')
+    const timer=setTimeout(()=>pushCloud().catch(()=>{}),900)
+    return()=>clearTimeout(timer)
+  },[cloudState,cloudReady,session?.user?.id,pushCloud])
+  useEffect(()=>{
+    if(!cloudReady||!session?.user||!cloud)return
+    const channel=cloud.channel(`business-state-${session.user.id}`).on('postgres_changes',{
+      event:'UPDATE',schema:'public',table:'business_state',filter:`user_id=eq.${session.user.id}`
+    },event=>{if(event.new?.device_id===deviceId)return;applyCloudState(event.new?.payload);setSyncStatus('synced');setLastSynced(event.new?.updated_at||new Date().toISOString())}).subscribe()
+    return()=>{cloud.removeChannel(channel)}
+  },[cloudReady,session?.user?.id,deviceId,applyCloudState])
+  useEffect(()=>{
+    const online=()=>{if(session?.user)pullCloud().catch(()=>{})}
+    const offline=()=>setSyncStatus('offline')
+    addEventListener('online',online);addEventListener('offline',offline)
+    return()=>{removeEventListener('online',online);removeEventListener('offline',offline)}
+  },[session?.user?.id,pullCloud])
   useEffect(()=>{'serviceWorker'in navigator&&navigator.serviceWorker.register('/sw.js').catch(()=>{})},[])
-  const nav=[['dashboard','Resumen',BarChart3],['quote','Impresión 3D',Calculator],['laser','Láser',Flame],['cricut','Cricut',Scissors],['catalog','Catálogo',Archive],['orders','Pedidos',ClipboardList],['inventory','Inventario',Package],['clients','Clientes',Users],['quotes','Cotizaciones',FileText],['models','Modelos 3D',Box],['settings','Configuración',Settings]]
+  const nav=[['dashboard','Resumen',BarChart3],['quote','Impresión 3D',Calculator],['laser','Láser',Flame],['cricut','Cricut',Scissors],['catalog','Catálogo',Archive],['orders','Pedidos',ClipboardList],['inventory','Inventario',Package],['clients','Clientes',Users],['quotes','Cotizaciones',FileText],['models','Modelos 3D',Box],['cloud','Sincronización',Cloud],['settings','Configuración',Settings]]
   const go=id=>{setPage(id);setOpen(false)}
+  const signIn=async(email,password)=>{const {error}=await cloud.auth.signInWithPassword({email,password});if(error)throw error}
+  const signUp=async(email,password)=>{const {data,error}=await cloud.auth.signUp({email,password});if(error)throw error;return data}
+  const signOut=async()=>{await cloud.auth.signOut();setSession(null);setCloudReady(false)}
+  const syncLabels={local:'Solo en este dispositivo','signed-out':'Nube disponible · inicia sesión',pending:'Cambios por guardar',syncing:'Sincronizando…',synced:'Sincronizado',offline:'Sin Internet · copia local',error:'Revisar sincronización'}
   return <div className="appShell">
     <aside className={`sidebar ${open?'open':''}`}><div className="brand"><img src="/logo-ae.png" alt="A&E Studio Laser"/><div><strong>A&E Studio Laser</strong><span>Gestión del taller</span></div></div>
-      <nav>{nav.map(([id,label,Icon])=><button key={id} className={page===id?'active':''} onClick={()=>go(id)}><Icon size={19}/>{label}</button>)}</nav><small>Datos guardados en este dispositivo</small></aside>
+      <nav>{nav.map(([id,label,Icon])=><button key={id} className={page===id?'active':''} onClick={()=>go(id)}><Icon size={19}/>{label}</button>)}</nav><button className={`sidebarSync ${syncStatus}`} onClick={()=>go('cloud')}>{syncStatus==='offline'||syncStatus==='error'||syncStatus==='local'?<CloudOff size={16}/>:<Cloud size={16}/>}<span>{syncLabels[syncStatus]}</span></button></aside>
     {open&&<button className="scrim" onClick={()=>setOpen(false)} aria-label="Cerrar menú"/>}
     <main className="main"><header className="topbar"><button className="menuButton" onClick={()=>setOpen(!open)}>{open?<X/>:<Menu/>}</button><div><h1>{nav.find(n=>n[0]===page)?.[1]}</h1><p>A&E Studio Laser</p></div></header>
       <div className="content">
@@ -57,9 +131,27 @@ function App(){
         {page==='clients'&&<Clients clients={clients} setClients={setClients}/>}
         {page==='quotes'&&<Quotes quotes={quotes} setQuotes={setQuotes}/>}
         {page==='models'&&<Models models={models} setModels={setModels} settings={settings}/>}
+        {page==='cloud'&&<CloudPage configured={isCloudConfigured} session={session} status={syncStatus} lastSynced={lastSynced} onSignIn={signIn} onSignUp={signUp} onSignOut={signOut} onSync={()=>pullCloud().catch(()=>{})}/>}
         {page==='settings'&&<SettingsPage settings={settings} setSettings={setSettings}/>}
       </div></main>
   </div>
+}
+
+function CloudPage({configured,session,status,lastSynced,onSignIn,onSignUp,onSignOut,onSync}){
+  const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[mode,setMode]=useState('signin')
+  const [busy,setBusy]=useState(false),[message,setMessage]=useState('')
+  const submit=async e=>{
+    e.preventDefault();setBusy(true);setMessage('')
+    try{
+      if(mode==='signin'){await onSignIn(email,password);setMessage('Sesión iniciada. Estamos descargando tus datos.')}
+      else{const result=await onSignUp(email,password);setMessage(result.session?'Cuenta creada y conectada.':'Cuenta creada. Revisa tu correo para confirmar el acceso.')}
+    }catch(error){setMessage(error.message||'No fue posible completar el acceso.')}
+    finally{setBusy(false)}
+  }
+  const statusText={signed-out:'Aún no has iniciado sesión',pending:'Hay cambios esperando guardarse',syncing:'Sincronizando datos…',synced:'Todos tus datos están sincronizados',offline:'Trabajando sin Internet; se sincronizará al regresar',error:'No se pudo sincronizar. Intenta nuevamente.',local:'Conexión en la nube pendiente'}
+  if(!configured)return <><section className="cloudHero"><div className="cloudHeroIcon"><Cloud size={34}/></div><div><span>Siguiente paso</span><h2>Sincronización preparada</h2><p>La aplicación ya tiene lista la conexión segura. Falta enlazar el espacio en la nube de A&E Studio Laser.</p></div></section><Card title="Qué se sincronizará" subtitle="La información quedará disponible en todos tus dispositivos."><div className="syncFeatures"><span><Check/>Cotizaciones y pedidos</span><span><Check/>Clientes y catálogo</span><span><Check/>Inventario y modelos 3D</span><span><Check/>Materiales, costos y configuración</span></div><div className="cloudPending"><CloudOff/><div><b>Conexión pendiente</b><p>Cuando se agreguen las credenciales del espacio de A&E, aparecerá aquí el acceso con correo y contraseña.</p></div></div></Card></>
+  if(!session)return <div className="cloudLayout"><section className="cloudHero"><div className="cloudHeroIcon"><Cloud size={34}/></div><div><span>Nube de A&E</span><h2>Usa la app en cualquier dispositivo</h2><p>Inicia sesión con la misma cuenta en celular, tableta o computadora.</p></div></section><Card title={mode==='signin'?'Iniciar sesión':'Crear cuenta'} subtitle="Tus datos están protegidos y separados de otros usuarios."><form className="cloudForm" onSubmit={submit}><Field label="Correo electrónico"><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email"/></Field><Field label="Contraseña"><input type="password" required minLength="6" value={password} onChange={e=>setPassword(e.target.value)} autoComplete={mode==='signin'?'current-password':'new-password'}/></Field>{message&&<div className="cloudMessage">{message}</div>}<button className="primary" disabled={busy} type="submit">{busy?<RefreshCw className="spin" size={18}/>:<LogIn size={18}/>} {busy?'Espera…':mode==='signin'?'Entrar':'Crear cuenta'}</button><button type="button" onClick={()=>{setMode(mode==='signin'?'signup':'signin');setMessage('')}}>{mode==='signin'?'Crear una cuenta nueva':'Ya tengo una cuenta'}</button></form></Card></div>
+  return <><section className="cloudHero connected"><div className="cloudHeroIcon"><Wifi size={34}/></div><div><span>Cuenta conectada</span><h2>{session.user.email}</h2><p>{statusText[status]||'Sincronización activa'}</p></div></section><div className="twoColumns"><Card title="Estado de la nube" subtitle={lastSynced?`Última sincronización: ${new Date(lastSynced).toLocaleString('es-MX')}`:'Preparando la primera sincronización'}><div className={`syncState ${status}`}><Cloud size={28}/><div><b>{statusText[status]}</b><p>Los cambios se guardan automáticamente. También conservamos una copia en este dispositivo.</p></div></div><div className="actions"><button className="primary" onClick={onSync} disabled={status==='syncing'}><RefreshCw className={status==='syncing'?'spin':''} size={18}/>Sincronizar ahora</button></div></Card><Card title="Dispositivos" subtitle="Cómo abrir tus datos en otro equipo."><ol className="deviceSteps"><li>Abre la misma dirección de la aplicación.</li><li>Entra a <b>Sincronización</b>.</li><li>Inicia sesión con este mismo correo y contraseña.</li></ol><button onClick={onSignOut}><LogOut size={18}/>Cerrar sesión en este dispositivo</button></Card></div></>
 }
 
 function Dashboard({orders,inventory,quotes,go}){
@@ -193,7 +285,7 @@ function SettingsPage({settings,setSettings}){
     <div className="sectionHeader"><div><h3>Materiales de impresión 3D</h3><p>Precio por kilogramo</p></div><button onClick={()=>setDraft({...draft,materials:[...draft.materials,{id:uid(),name:'Nuevo material',priceKg:0}]})}><Plus size={17}/>Agregar</button></div><div className="materials">{draft.materials.map(m=><div className="materialRow" key={m.id}><input value={m.name} onChange={e=>mat(m.id,'name',e.target.value)}/><input type="number" value={m.priceKg} onChange={e=>mat(m.id,'priceKg',e.target.value)}/><button className="iconButton danger" onClick={()=>setDraft({...draft,materials:draft.materials.filter(x=>x.id!==m.id)})}><Trash2 size={17}/></button></div>)}</div>
     <SheetCatalog title="Materiales de láser" allowUnit list={draft.laserMaterials||defaults.laserMaterials} onChange={list=>setDraft({...draft,laserMaterials:list})}/>
     <SheetCatalog title="Materiales de Cricut" allowMeter list={draft.cricutMaterials||defaults.cricutMaterials} onChange={list=>setDraft({...draft,cricutMaterials:list})}/>
-    <div className="actions"><button className="primary" onClick={()=>{setSettings(draft);alert('Configuración guardada.')}}><Save size={18}/>Guardar configuración</button><button onClick={()=>setDraft(defaults)}><RotateCcw size={18}/>Restaurar</button></div><div className="syncNotice"><Archive/><div><b>Sincronización entre dispositivos</b><p>Actualmente se guarda en este dispositivo. La estructura está lista para conectar una base de datos posteriormente.</p></div></div></Card>
+    <div className="actions"><button className="primary" onClick={()=>{setSettings(draft);alert('Configuración guardada.')}}><Save size={18}/>Guardar configuración</button><button onClick={()=>setDraft(defaults)}><RotateCcw size={18}/>Restaurar</button></div><div className="syncNotice"><Cloud/><div><b>Sincronización entre dispositivos</b><p>Abre la sección Sincronización para conectar tu cuenta y mantener estos costos disponibles en celular y computadora.</p></div></div></Card>
 }
 
 function SheetCatalog({title,list,onChange,allowMeter=false,allowUnit=false}){
