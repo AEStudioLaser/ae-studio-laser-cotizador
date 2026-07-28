@@ -12,7 +12,7 @@ import {blankCatalogProduct, defaultCatalog} from './catalogData'
 import {cloud, isCloudConfigured} from './cloud'
 import Design3DPage from './design3d/Design3DPage'
 import CreativeProjectsPage from './creative/CreativeProjectsPage'
-import {calculateCricutConsumption, calculateServicePrice, remainingAreaLength} from './pricing/serviceQuote'
+import {calculateCricutConsumption, calculateServicePrice, calculateSheetMaterialCost, remainingAreaLength} from './pricing/serviceQuote'
 
 const money=v=>new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(Number(v)||0)
 const num=v=>Number(v)||0
@@ -222,7 +222,7 @@ function ServiceQuote({service,inventory,setInventory,catalog:productCatalog,set
     const w=Math.max(.1,num(form.width)),h=Math.max(.1,num(form.height)),qty=Math.max(1,num(form.quantity)),sw=Math.max(.1,num(material.sheetWidth)),sh=Math.max(.1,num(material.sheetHeight)),waste=Math.max(0,num(material.waste))/100,isMeter=material.pricingMode==='meter',isUnit=material.pricingMode==='unit',isArea=material.pricingMode==='area'
     const across=Math.max(1,Math.floor(sw/w)),down=Math.max(1,Math.floor(sh/h)),grid=across*down,areaCapacity=Math.max(1,Math.floor(sw*sh/(w*h*(1+waste)))),perSheet=Math.max(1,Math.min(grid,areaCapacity)),sheets=Math.ceil(qty/perSheet),rows=Math.ceil(qty/across),usedLength=rows*h*(1+waste)
     const usedArea=w*h*qty,proportionalUnit=num(material.sheetCost)/perSheet,includeMaterial=form.materialSource==='studio'
-    const automaticMaterial=isUnit?num(material.sheetCost)*qty:isArea?(usedArea/(sw*sh))*num(material.sheetCost):isMeter?(usedLength/100)*num(material.sheetCost):(form.fullSheet?sheets*num(material.sheetCost):proportionalUnit*qty)
+    const automaticMaterial=isUnit?num(material.sheetCost)*qty:isArea?(usedArea/(sw*sh))*num(material.sheetCost):isMeter?(usedLength/100)*num(material.sheetCost):material.trackingMode==='sheets'||form.fullSheet?calculateSheetMaterialCost(material.sheetCost,sheets):proportionalUnit*qty
     const materialCost=includeMaterial?(form.manualMaterial===''?automaticMaterial:num(form.manualMaterial)):0,materialUnit=materialCost/qty,machineHours=num(form.hours)+num(form.minutes)/60,rate=isLaser?num(settings.laserRate||defaults.laserRate):num(settings.cricutRate||defaults.cricutRate),machineCost=machineHours*rate,productionCost=materialCost+machineCost+num(form.labor)+num(form.design)+num(form.assembly)+num(form.extras)
     const productBase=num(selectedProduct?.price)*qty,addProductToService=!isLaser&&productBase>0,pricing=calculateServicePrice({productionCost,profitPercent:form.profit,productBase,roundTo:settings.roundTo,addProductToService})
     const inventoryConsumption=!isLaser&&material.inventoryId&&includeMaterial?calculateCricutConsumption({width:w,height:h,quantity:qty,piecesPerSheet:perSheet,trackingMode:material.trackingMode}):null
