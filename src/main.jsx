@@ -4,12 +4,14 @@ import {
   Archive, BarChart3, Box, Calculator, Check, ClipboardList, Cloud, CloudOff,
   FileText, Flame, LogIn, LogOut, Menu, MessageCircle, Package, Plus, Printer,
   RefreshCw, RotateCcw, Save, Search, Scissors, Settings, Trash2, UserRound,
-  Users, Wifi, X
+  Users, Wifi, X, Palette, PencilRuler
 } from 'lucide-react'
 import './styles.css'
 import './service.css'
 import {blankCatalogProduct, defaultCatalog} from './catalogData'
 import {cloud, isCloudConfigured} from './cloud'
+import Design3DPage from './design3d/Design3DPage'
+import CreativeProjectsPage from './creative/CreativeProjectsPage'
 
 const money=v=>new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(Number(v)||0)
 const num=v=>Number(v)||0
@@ -40,11 +42,13 @@ function App(){
   const [catalog,setCatalog]=useLocal('ae_catalog_v1',defaultCatalog)
   const [clients,setClients]=useLocal('ae_clients_v5',[])
   const [models,setModels]=useLocal('ae_models_v5',[])
+  const [creativeProjects,setCreativeProjects]=useLocal('ae_creative_projects_v1',[])
+  const [quoteDraft,setQuoteDraft]=useState(null)
   const [session,setSession]=useState(null),[cloudReady,setCloudReady]=useState(false)
   const [syncStatus,setSyncStatus]=useState(isCloudConfigured?'signed-out':'local'),[lastSynced,setLastSynced]=useState('')
   const skipUpload=useRef(false),stateRef=useRef(null)
   const deviceId=useMemo(()=>{let id=localStorage.getItem('ae_device_id');if(!id){id=uid();localStorage.setItem('ae_device_id',id)}return id},[])
-  const cloudState=useMemo(()=>({version:1,settings,quotes,orders,inventory,catalog,clients,models}),[settings,quotes,orders,inventory,catalog,clients,models])
+  const cloudState=useMemo(()=>({version:2,settings,quotes,orders,inventory,catalog,clients,models,creativeProjects}),[settings,quotes,orders,inventory,catalog,clients,models,creativeProjects])
   stateRef.current=cloudState
 
   const applyCloudState=useCallback(payload=>{
@@ -57,7 +61,8 @@ function App(){
     if(Array.isArray(payload.catalog))setCatalog(payload.catalog)
     if(Array.isArray(payload.clients))setClients(payload.clients)
     if(Array.isArray(payload.models))setModels(payload.models)
-  },[setSettings,setQuotes,setOrders,setInventory,setCatalog,setClients,setModels])
+    if(Array.isArray(payload.creativeProjects))setCreativeProjects(payload.creativeProjects)
+  },[setSettings,setQuotes,setOrders,setInventory,setCatalog,setClients,setModels,setCreativeProjects])
 
   const pushCloud=useCallback(async()=>{
     if(!cloud||!session?.user)return
@@ -109,22 +114,24 @@ function App(){
     return()=>{removeEventListener('online',online);removeEventListener('offline',offline)}
   },[session?.user?.id,pullCloud])
   useEffect(()=>{'serviceWorker'in navigator&&navigator.serviceWorker.register('/sw.js').catch(()=>{})},[])
-  const nav=[['dashboard','Resumen',BarChart3],['quote','Impresión 3D',Calculator],['laser','Láser',Flame],['cricut','Cricut',Scissors],['catalog','Catálogo',Archive],['orders','Pedidos',ClipboardList],['inventory','Inventario',Package],['clients','Clientes',Users],['quotes','Cotizaciones',FileText],['models','Modelos 3D',Box],['cloud','Sincronización',Cloud],['settings','Configuración',Settings]]
+  const nav=[['dashboard','Resumen',BarChart3],['quote','Impresión 3D',Calculator],['design3d','Diseño 3D',PencilRuler],['laser','Láser',Flame],['cricut','Cricut',Scissors],['creative','Diseño creativo',Palette],['catalog','Catálogo',Archive],['orders','Pedidos',ClipboardList],['inventory','Inventario',Package],['clients','Clientes',Users],['quotes','Cotizaciones',FileText],['models','Modelos 3D',Box],['cloud','Sincronización',Cloud],['settings','Configuración',Settings]]
   const go=id=>{setPage(id);setOpen(false)}
   const signIn=async(email,password)=>{const {error}=await cloud.auth.signInWithPassword({email,password});if(error)throw error}
   const signUp=async(email,password)=>{const {data,error}=await cloud.auth.signUp({email,password});if(error)throw error;return data}
   const signOut=async()=>{await cloud.auth.signOut();setSession(null);setCloudReady(false)}
   const syncLabels={local:'Solo en este dispositivo','signed-out':'Nube disponible · inicia sesión',pending:'Cambios por guardar',syncing:'Sincronizando…',synced:'Sincronizado',offline:'Sin Internet · copia local',error:'Revisar sincronización'}
   return <div className="appShell">
-    <aside className={`sidebar ${open?'open':''}`}><div className="brand"><img src="/logo-ae.png" alt="A&E Studio Laser"/><div><strong>A&E Studio Laser</strong><span>Gestión del taller</span></div></div>
+    <aside className={`sidebar ${open?'open':''}`}><div className="brand"><img src="/logo-ae.png" alt="A&E Studio Laser"/><div><strong>A&E Studio Maker</strong><span>A&E Studio Laser</span></div></div>
       <nav>{nav.map(([id,label,Icon])=><button key={id} className={page===id?'active':''} onClick={()=>go(id)}><Icon size={19}/>{label}</button>)}</nav><button className={`sidebarSync ${syncStatus}`} onClick={()=>go('cloud')}>{syncStatus==='offline'||syncStatus==='error'||syncStatus==='local'?<CloudOff size={16}/>:<Cloud size={16}/>}<span>{syncLabels[syncStatus]}</span></button></aside>
     {open&&<button className="scrim" onClick={()=>setOpen(false)} aria-label="Cerrar menú"/>}
     <main className="main"><header className="topbar"><button className="menuButton" onClick={()=>setOpen(!open)}>{open?<X/>:<Menu/>}</button><div><h1>{nav.find(n=>n[0]===page)?.[1]}</h1><p>A&E Studio Laser</p></div></header>
       <div className="content">
         {page==='dashboard'&&<Dashboard orders={orders} inventory={inventory} quotes={quotes} go={go}/>}
-        {page==='quote'&&<Quote settings={settings} inventory={inventory} catalog={catalog} quotes={quotes} setQuotes={setQuotes} orders={orders} setOrders={setOrders} clients={clients} setClients={setClients} models={models} setModels={setModels}/>}
+        {page==='quote'&&<Quote settings={settings} inventory={inventory} catalog={catalog} quotes={quotes} setQuotes={setQuotes} orders={orders} setOrders={setOrders} clients={clients} setClients={setClients} models={models} setModels={setModels} designDraft={quoteDraft} onDraftConsumed={()=>setQuoteDraft(null)}/>}
+        {page==='design3d'&&<Design3DPage onQuote={draft=>{setQuoteDraft(draft);go('quote')}}/>}
         {page==='laser'&&<ServiceQuote service="laser" inventory={inventory} catalog={catalog} settings={settings} quotes={quotes} setQuotes={setQuotes} orders={orders} setOrders={setOrders} clients={clients} setClients={setClients}/>}
         {page==='cricut'&&<ServiceQuote service="cricut" inventory={inventory} catalog={catalog} settings={settings} quotes={quotes} setQuotes={setQuotes} orders={orders} setOrders={setOrders} clients={clients} setClients={setClients}/>}
+        {page==='creative'&&<CreativeProjectsPage projects={creativeProjects} setProjects={setCreativeProjects} clients={clients} inventory={inventory} orders={orders} products={catalog}/>}
         {page==='catalog'&&<Catalog products={catalog} setProducts={setCatalog}/>}
         {page==='orders'&&<Orders orders={orders} setOrders={setOrders}/>}
         {page==='inventory'&&<Inventory items={inventory} setItems={setInventory}/>}
@@ -149,7 +156,7 @@ function CloudPage({configured,session,status,lastSynced,onSignIn,onSignUp,onSig
     finally{setBusy(false)}
   }
   const statusText={'signed-out':'Aún no has iniciado sesión',pending:'Hay cambios esperando guardarse',syncing:'Sincronizando datos…',synced:'Todos tus datos están sincronizados',offline:'Trabajando sin Internet; se sincronizará al regresar',error:'No se pudo sincronizar. Intenta nuevamente.',local:'Conexión en la nube pendiente'}
-  if(!configured)return <><section className="cloudHero"><div className="cloudHeroIcon"><Cloud size={34}/></div><div><span>Siguiente paso</span><h2>Sincronización preparada</h2><p>La aplicación ya tiene lista la conexión segura. Falta enlazar el espacio en la nube de A&E Studio Laser.</p></div></section><Card title="Qué se sincronizará" subtitle="La información quedará disponible en todos tus dispositivos."><div className="syncFeatures"><span><Check/>Cotizaciones y pedidos</span><span><Check/>Clientes y catálogo</span><span><Check/>Inventario y modelos 3D</span><span><Check/>Materiales, costos y configuración</span></div><div className="cloudPending"><CloudOff/><div><b>Conexión pendiente</b><p>Cuando se agreguen las credenciales del espacio de A&E, aparecerá aquí el acceso con correo y contraseña.</p></div></div></Card></>
+  if(!configured)return <><section className="cloudHero"><div className="cloudHeroIcon"><Cloud size={34}/></div><div><span>Siguiente paso</span><h2>Sincronización preparada</h2><p>La aplicación ya tiene lista la conexión segura. Falta enlazar el espacio en la nube de A&E Studio Laser.</p></div></section><Card title="Qué se sincronizará" subtitle="La información quedará disponible en todos tus dispositivos."><div className="syncFeatures"><span><Check/>Cotizaciones y pedidos</span><span><Check/>Clientes y catálogo</span><span><Check/>Inventario, modelos y diseños</span><span><Check/>Materiales, costos y configuración</span></div><div className="cloudPending"><CloudOff/><div><b>Conexión pendiente</b><p>Cuando se agreguen las credenciales del espacio de A&E, aparecerá aquí el acceso con correo y contraseña.</p></div></div></Card></>
   if(!session)return <div className="cloudLayout"><section className="cloudHero"><div className="cloudHeroIcon"><Cloud size={34}/></div><div><span>Nube de A&E</span><h2>Usa la app en cualquier dispositivo</h2><p>Inicia sesión con la misma cuenta en celular, tableta o computadora.</p></div></section><Card title={mode==='signin'?'Iniciar sesión':'Crear cuenta'} subtitle="Tus datos están protegidos y separados de otros usuarios."><form className="cloudForm" onSubmit={submit}><Field label="Correo electrónico"><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email"/></Field><Field label="Contraseña"><input type="password" required minLength="6" value={password} onChange={e=>setPassword(e.target.value)} autoComplete={mode==='signin'?'current-password':'new-password'}/></Field>{message&&<div className="cloudMessage">{message}</div>}<button className="primary" disabled={busy} type="submit">{busy?<RefreshCw className="spin" size={18}/>:<LogIn size={18}/>} {busy?'Espera…':mode==='signin'?'Entrar':'Crear cuenta'}</button><button type="button" onClick={()=>{setMode(mode==='signin'?'signup':'signin');setMessage('')}}>{mode==='signin'?'Crear una cuenta nueva':'Ya tengo una cuenta'}</button></form></Card></div>
   return <><section className="cloudHero connected"><div className="cloudHeroIcon"><Wifi size={34}/></div><div><span>Cuenta conectada</span><h2>{session.user.email}</h2><p>{statusText[status]||'Sincronización activa'}</p></div></section><div className="twoColumns"><Card title="Estado de la nube" subtitle={lastSynced?`Última sincronización: ${new Date(lastSynced).toLocaleString('es-MX')}`:'Preparando la primera sincronización'}><div className={`syncState ${status}`}><Cloud size={28}/><div><b>{statusText[status]}</b><p>Los cambios se guardan automáticamente. También conservamos una copia en este dispositivo.</p></div></div><div className="actions"><button className="primary" onClick={onSync} disabled={status==='syncing'}><RefreshCw className={status==='syncing'?'spin':''} size={18}/>Sincronizar ahora</button></div></Card><Card title="Dispositivos" subtitle="Cómo abrir tus datos en otro equipo."><ol className="deviceSteps"><li>Abre la misma dirección de la aplicación.</li><li>Entra a <b>Sincronización</b>.</li><li>Inicia sesión con este mismo correo y contraseña.</li></ol><button onClick={onSignOut}><LogOut size={18}/>Cerrar sesión en este dispositivo</button></Card></div></>
 }
@@ -165,8 +172,10 @@ function Dashboard({orders,inventory,quotes,go}){
   </>
 }
 
-function Quote({settings,inventory,catalog,quotes,setQuotes,orders,setOrders,clients,setClients,models,setModels}){
-  const [form,setForm]=useState(()=>freshQuote(settings)),[saved,setSaved]=useState(false)
+function Quote({settings,inventory,catalog,quotes,setQuotes,orders,setOrders,clients,setClients,models,setModels,designDraft,onDraftConsumed}){
+  const fromDesign=()=>designDraft?{...freshQuote(settings),project:designDraft.project,quantity:designDraft.quantity,weight:0,hours:0,minutes:0,designMeta:designDraft.designMeta}:freshQuote(settings)
+  const [form,setForm]=useState(fromDesign),[saved,setSaved]=useState(false)
+  useEffect(()=>{if(!designDraft)return;setForm({...freshQuote(settings),project:designDraft.project,quantity:designDraft.quantity,weight:0,hours:0,minutes:0,designMeta:designDraft.designMeta});setSaved(false);onDraftConsumed?.()},[designDraft?.id])
   const inventoryMaterials=(inventory||[]).filter(i=>i.category==='3d'&&num(i.stock)>0).map(i=>({id:`stock-${i.id}`,name:`${i.name} (Inventario)`,priceKg:unitCost(i),inventoryId:i.id})),materialCatalog=[...(settings.materials||[]),...inventoryMaterials],catalogProducts=(catalog||[]).filter(p=>(p.service==='3d'||p.service==='all')&&p.status!=='hidden')
   const update=(k,v)=>{setSaved(false);setForm({...form,[k]:v})},material=materialCatalog.find(m=>m.id===form.material)||materialCatalog[0]||{name:'Material',priceKg:0},catalogItem=catalogProducts.find(p=>p.id===form.catalogProduct)
   const calc=useMemo(()=>{const qty=Math.max(1,num(form.quantity)),h=num(form.hours)+num(form.minutes)/60,materialCost=num(form.weight)/1000*num(material.priceKg),electricity=h*num(settings.printerWatts)/1000*num(settings.electricityPrice),wear=h*num(settings.wearPerHour),repeatableCost=materialCost+electricity+wear,failureCost=repeatableCost*Math.max(0,num(form.failure))/100,productionCost=repeatableCost+failureCost+num(form.labor)+num(form.extras),raw=productionCost*(1+num(form.profit)/100),catalogBase=num(catalogItem?.price)*qty,step=Math.max(1,num(settings.roundTo)),total=Math.ceil(Math.max(raw,catalogBase)/step)*step;return{printHours:h,materialCost,electricity,wear,failureCost,productionCost,catalogBase,profitAmount:total-productionCost,total,unit:total/qty}},[form,material,catalogItem,settings])
@@ -178,6 +187,7 @@ function Quote({settings,inventory,catalog,quotes,setQuotes,orders,setOrders,cli
   const saveModel=()=>{if(!form.project.trim())return alert('Escribe el proyecto.');setModels([{id:uid(),name:form.project.trim(),material:form.material,weight:form.weight,hours:form.hours,minutes:form.minutes},...models]);alert('Modelo guardado.')}
   const loadModel=id=>{const m=models.find(x=>x.id===id);if(m)setForm({...form,project:m.name,material:m.material,weight:m.weight,hours:m.hours,minutes:m.minutes})}
   return <div className="quoteLayout"><Card title="Nueva cotización" subtitle="Captura solo los datos necesarios.">
+    {form.designMeta&&<div className="usageNote designTransferNote"><b>Datos recibidos de Diseño 3D</b><span>{form.designMeta.type}: {form.designMeta.length} × {form.designMeta.height} × {form.designMeta.thickness} {form.designMeta.unit}. Captura el peso y el tiempo reales desde Bambu Studio antes de guardar la cotización.</span></div>}
     {models.length>0&&<Field label="Cargar modelo guardado" full><select defaultValue="" onChange={e=>{loadModel(e.target.value);e.target.value=''}}><option value="">Seleccionar modelo…</option>{models.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></Field>}
     {catalogProducts.length>0&&<Field label="Producto del catálogo (opcional)" full><select value={form.catalogProduct} onChange={e=>{const item=catalogProducts.find(p=>p.id===e.target.value);setForm({...form,catalogProduct:e.target.value,project:form.project||item?.name||''});setSaved(false)}}><option value="">Cotización desde cero</option>{catalogProducts.map(p=><option key={p.id} value={p.id}>{p.name} — {money(p.price)}</option>)}</select></Field>}
     <div className="formGrid"><Field label="Cliente"><input value={form.client} onChange={e=>update('client',e.target.value)} placeholder="Nombre del cliente"/></Field><Field label="Proyecto"><input value={form.project} onChange={e=>update('project',e.target.value)} placeholder="Ej. Llavero personalizado"/></Field>
