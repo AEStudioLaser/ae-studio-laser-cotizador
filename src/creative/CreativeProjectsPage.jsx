@@ -37,6 +37,7 @@ export default function CreativeProjectsPage({
   const [editing,setEditing] = useState(null)
   const [search,setSearch] = useState('')
   const [notice,setNotice] = useState('')
+  const [submitted,setSubmitted] = useState(false)
   const errors = useMemo(() => validateCreativeProject(form), [form])
   const canvaValid = isCanvaUrl(form.canvaUrl)
   const isCricut = ['Cricut','Vinil','Sticker','DTF'].includes(form.technique) || ['Cricut','Vinil','Sticker','DTF'].includes(form.workType)
@@ -53,9 +54,11 @@ export default function CreativeProjectsPage({
     setForm(EMPTY_CREATIVE_PROJECT)
     setEditing(null)
     setNotice('')
+    setSubmitted(false)
   }
   const save = () => {
     if (Object.keys(errors).length) {
+      setSubmitted(true)
       setNotice('Revisa los campos señalados antes de guardar.')
       return
     }
@@ -71,11 +74,13 @@ export default function CreativeProjectsPage({
     setNotice(editing ? 'Proyecto actualizado.' : 'Proyecto creativo guardado.')
     setForm(EMPTY_CREATIVE_PROJECT)
     setEditing(null)
+    setSubmitted(false)
   }
   const edit = project => {
     setEditing(project.id)
     setForm({...EMPTY_CREATIVE_PROJECT,...project})
     setNotice('')
+    setSubmitted(false)
     window.scrollTo({top:0,behavior:'smooth'})
   }
   const openCanva = url => {
@@ -96,8 +101,8 @@ export default function CreativeProjectsPage({
     <section className="card">
       <div className="cardTitle"><div><h2>{editing ? 'Editar proyecto creativo' : 'Nuevo proyecto creativo'}</h2><p>La app organiza el trabajo; el archivo se diseña y exporta manualmente en la herramienta correspondiente.</p></div></div>
       <div className="formGrid">
-        <Field label="Nombre del proyecto" error={errors.name}>
-          <input aria-invalid={Boolean(errors.name)} value={form.name} onChange={event => update('name',event.target.value)} placeholder="Ej. Stickers para cumpleaños"/>
+        <Field label="Nombre del proyecto" error={submitted ? errors.name : ''}>
+          <input aria-invalid={submitted && Boolean(errors.name)} value={form.name} onChange={event => update('name',event.target.value)} placeholder="Ej. Stickers para cumpleaños"/>
         </Field>
         <Field label="Cliente existente">
           <select value={form.clientId} onChange={event => update('clientId',event.target.value)}>
@@ -128,7 +133,7 @@ export default function CreativeProjectsPage({
           </select>
         </Field>
         <div className="creativeMeasures">
-          <Field label={`Ancho (${form.unit})`} error={errors.dimensions}>
+          <Field label={`Ancho (${form.unit})`} error={submitted ? errors.dimensions : ''}>
             <input type="number" min=".1" step=".1" value={form.width} onChange={event => update('width',event.target.value)} placeholder="Opcional"/>
           </Field>
           <Field label={`Alto (${form.unit})`}>
@@ -138,8 +143,8 @@ export default function CreativeProjectsPage({
             <select value={form.unit} onChange={event => update('unit',event.target.value)}><option value="cm">cm</option><option value="mm">mm</option></select>
           </Field>
         </div>
-        <Field label="Cantidad" error={errors.quantity}>
-          <input aria-invalid={Boolean(errors.quantity)} type="number" min="1" step="1" value={form.quantity} onChange={event => update('quantity',event.target.value)}/>
+        <Field label="Cantidad" error={submitted ? errors.quantity : ''}>
+          <input aria-invalid={submitted && Boolean(errors.quantity)} type="number" min="1" step="1" value={form.quantity} onChange={event => update('quantity',event.target.value)}/>
         </Field>
         <Field label="Color">
           <input value={form.color} onChange={event => update('color',event.target.value)} placeholder="Ej. Azul marino"/>
@@ -155,7 +160,7 @@ export default function CreativeProjectsPage({
             {orders.map(order => <option key={order.id} value={order.id}>{order.project || 'Pedido'} · {order.client || 'Sin cliente'}</option>)}
           </select>
         </Field>
-        <Field label="Enlace de Canva" full error={errors.canvaUrl}>
+        <Field label="Enlace de Canva" full error={submitted ? errors.canvaUrl : ''}>
           <div className={`linkInput ${form.canvaUrl && !canvaValid ? 'invalid' : ''}`}>
             <Link2 size={18}/>
             <input type="url" value={form.canvaUrl} onChange={event => update('canvaUrl',event.target.value)} placeholder="https://www.canva.com/design/..."/>
@@ -190,7 +195,7 @@ export default function CreativeProjectsPage({
           <Field label="Operación">
             <select value={form.laserOperation} onChange={event => update('laserOperation',event.target.value)}><option value="cut">Corte</option><option value="engrave">Grabado</option><option value="both">Corte y grabado</option></select>
           </Field>
-          <Field label="Grosor del material (mm)" error={errors.thickness}>
+          <Field label="Grosor del material (mm)" error={submitted ? errors.thickness : ''}>
             <input type="number" min=".1" step=".1" value={form.thickness} onChange={event => update('thickness',event.target.value)} placeholder="Opcional"/>
           </Field>
           <Field label="Formato previsto">
@@ -205,7 +210,7 @@ export default function CreativeProjectsPage({
       <Field label="Notas" full>
         <textarea rows="4" value={form.notes} onChange={event => update('notes',event.target.value)} placeholder="Observaciones, cambios solicitados y detalles del cliente"/>
       </Field>
-      {notice && <div className={Object.keys(errors).length ? 'validationSummary' : 'success'}>{notice}</div>}
+      {notice && <div className={submitted && Object.keys(errors).length ? 'validationSummary' : 'success'}>{notice}</div>}
       <div className="actions">
         <button className="primary" onClick={save}><Save size={18}/>{editing ? 'Guardar cambios' : 'Guardar proyecto'}</button>
         {editing && <button onClick={reset}>Cancelar edición</button>}
