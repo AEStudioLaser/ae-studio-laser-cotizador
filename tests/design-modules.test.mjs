@@ -18,6 +18,7 @@ import {
   calculateSheetMaterialCost,
   remainingAreaLength,
 } from '../src/pricing/serviceQuote.js'
+import {calculateFilamentBreakdown} from '../src/pricing/print3d.js'
 
 test('las medidas predeterminadas del llavero son válidas', () => {
   assert.deepEqual(validateKeychain(DEFAULT_KEYCHAIN), {})
@@ -116,4 +117,30 @@ test('las hojas de sticker se descuentan según las piezas que caben', () => {
 
   assert.deepEqual(usage,{unit:'hojas',amount:2})
   assert.equal(calculateSheetMaterialCost(12,usage.amount),24)
+})
+
+test('la impresión multicolor suma costos y gramos por filamento', () => {
+  const filament = calculateFilamentBreakdown({
+    primaryMaterial:{id:'pla-red',name:'PLA rojo',priceKg:300,inventoryId:'red-stock'},
+    primaryWeight:40,
+    extraColors:[
+      {id:'blue',weight:10,material:{id:'pla-blue',name:'PLA azul',priceKg:400,inventoryId:'blue-stock'}},
+    ],
+  })
+
+  assert.equal(filament.totalGrams,50)
+  assert.equal(filament.totalCost,16)
+  assert.deepEqual(filament.inventoryUsage,{'red-stock':40,'blue-stock':10})
+})
+
+test('los gramos del mismo rollo se acumulan antes de descontar inventario', () => {
+  const filament = calculateFilamentBreakdown({
+    primaryMaterial:{id:'pla',name:'PLA',priceKg:298,inventoryId:'same-stock'},
+    primaryWeight:25,
+    extraColors:[
+      {id:'extra',weight:5,material:{id:'pla',name:'PLA',priceKg:298,inventoryId:'same-stock'}},
+    ],
+  })
+
+  assert.deepEqual(filament.inventoryUsage,{'same-stock':30})
 })
