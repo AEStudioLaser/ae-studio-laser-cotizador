@@ -11,6 +11,16 @@
 .sheetField span{font-size:11px;font-weight:700;color:#657287}
 .checkField{display:flex;align-items:center;gap:9px;padding-top:20px;color:#40516a;font-size:13px;font-weight:700}
 .checkField input{width:18px;height:18px;accent-color:#0f56c6}
+.multicolorToggle{padding:16px 0 0}
+.multicolorBox{margin-top:12px;padding:15px;border:1px dashed #bfd0e5;border-radius:11px;background:#f8fbff}
+.multicolorHeader{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:12px}
+.multicolorHeader div{display:grid;gap:3px}.multicolorHeader small{color:#718097}
+.multicolorHeader button{border:1px solid #c9d8eb;border-radius:9px;background:#fff;color:#1856a8;padding:8px 11px;display:inline-flex;align-items:center;gap:6px;font-weight:700}
+.multicolorRow{display:grid;grid-template-columns:minmax(0,1fr) 130px 38px;align-items:end;gap:9px;margin-top:9px}
+.multicolorRow select,.multicolorRow input{width:100%;border:1px solid #d9e1ec;border-radius:9px;background:#fff;padding:10px 11px;color:#172033}
+.multicolorRow label{display:grid;gap:5px}.multicolorRow label span{font-size:11px;font-weight:700;color:#5f6c7f}
+.multicolorEmpty{margin:0;color:#728096;font-size:13px}.multicolorTotal{display:flex;justify-content:space-between;margin-top:13px;padding-top:12px;border-top:1px solid #dbe5f1;color:#40516a}
+@media(max-width:760px){.multicolorHeader{align-items:flex-start;flex-direction:column}.multicolorRow{grid-template-columns:1fr 110px 38px}}
 @media(max-width:760px){
   .sheetRow{grid-template-columns:1fr 1fr}
   .sheetRow .iconButton{width:100%}
