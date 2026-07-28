@@ -20,8 +20,12 @@ Todos los cambios relevantes de A&E Studio Maker se documentan aquí.
 - Se verificó la sincronización conectada.
 - Se verificó la navegación móvil a 390 × 844 px.
 - No se encontraron errores en consola.
+- Se añadió el generador paramétrico de llaveros con exportación OpenSCAD.
+- Se añadió la organización de proyectos para Canva, Cricut y LightBurn.
+- Se conectó el diseño 3D con el cotizador existente sin alterar sus fórmulas.
+- Se añadieron siete pruebas automáticas de validación y generación.
+- La vista previa de Vercel compiló correctamente desde la rama de trabajo.
 
 ### Limitaciones
 
 - La instalación local de dependencias quedó bloqueada por falta de acceso al registro de npm en el entorno de trabajo.
-
