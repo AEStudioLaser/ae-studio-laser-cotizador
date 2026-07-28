@@ -1,7 +1,7 @@
 {
-  "name": "A&E Studio Laser",
-  "short_name": "A&E Studio",
-  "description": "Cotizador de impresión 3D, láser y Cricut, pedidos, inventario y clientes",
+  "name": "A&E Studio Maker",
+  "short_name": "A&E Maker",
+  "description": "Herramienta de A&E Studio Laser para cotizar, diseñar y organizar el taller",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f4f7fb",
