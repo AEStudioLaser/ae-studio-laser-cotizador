@@ -52,8 +52,10 @@ Nunca guardes contraseñas, tokens privados ni claves de servicio dentro del rep
 
 - Resumen.
 - Impresión 3D.
+- Diseño 3D paramétrico.
 - Láser.
 - Cricut.
+- Diseño creativo.
 - Catálogo.
 - Pedidos.
 - Inventario.
@@ -73,7 +75,13 @@ Vercel compila el proyecto desde GitHub. Los cambios de esta etapa se desarrolla
 
 ## Pruebas
 
-El proyecto todavía no tiene una suite automatizada ni linter configurado. Antes de publicar se debe:
+Las validaciones del generador 3D y de los proyectos creativos se ejecutan con:
+
+```bash
+npm test
+```
+
+Antes de publicar también se debe:
 
 1. recorrer los módulos actuales;
 2. revisar la consola;
@@ -82,4 +90,3 @@ El proyecto todavía no tiene una suite automatizada ni linter configurado. Ante
 5. probar las funciones nuevas.
 
 Consulta [`docs/MASTER_PROJECT_SPEC.md`](docs/MASTER_PROJECT_SPEC.md) y [`docs/PLAN_APP_AE_STUDIO.md`](docs/PLAN_APP_AE_STUDIO.md) para conocer el alcance y el plan técnico.
-
