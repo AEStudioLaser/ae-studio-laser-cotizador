@@ -83,11 +83,6 @@ export default function CreativeProjectsPage({
     setSubmitted(false)
     window.scrollTo({top:0,behavior:'smooth'})
   }
-  const openCanva = url => {
-    if (!isCanvaUrl(url) || !url) return
-    window.open(url,'_blank','noopener,noreferrer')
-  }
-
   return <div className="creativePage">
     <section className="creativeHero">
       <div>
@@ -164,7 +159,9 @@ export default function CreativeProjectsPage({
           <div className={`linkInput ${form.canvaUrl && !canvaValid ? 'invalid' : ''}`}>
             <Link2 size={18}/>
             <input type="url" value={form.canvaUrl} onChange={event => update('canvaUrl',event.target.value)} placeholder="https://www.canva.com/design/..."/>
-            <button type="button" disabled={!form.canvaUrl || !canvaValid} onClick={() => openCanva(form.canvaUrl)}><ExternalLink size={17}/>Abrir</button>
+            {canvaValid
+              ? <a className="canvaLink" href={form.canvaUrl} target="_blank" rel="noreferrer"><ExternalLink size={17}/>Abrir</a>
+              : <button type="button" disabled><ExternalLink size={17}/>Abrir</button>}
           </div>
         </Field>
         <Field label="Referencia del archivo" full>
@@ -235,7 +232,7 @@ export default function CreativeProjectsPage({
               <div><dt>Cantidad</dt><dd>{project.quantity}</dd></div>
             </dl>
             <div className="rowActions">
-              {project.canvaUrl && <button onClick={() => openCanva(project.canvaUrl)}><ExternalLink size={16}/>Canva</button>}
+              {project.canvaUrl && <a className="canvaLink" href={project.canvaUrl} target="_blank" rel="noreferrer"><ExternalLink size={16}/>Canva</a>}
               <button onClick={() => edit(project)}>Editar</button>
               <button className="iconButton danger" aria-label={`Eliminar ${project.name}`} onClick={() => confirm(`¿Eliminar ${project.name}?`) && setProjects(projects.filter(item => item.id !== project.id))}><Trash2 size={16}/></button>
             </div>
