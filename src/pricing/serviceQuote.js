@@ -54,3 +54,7 @@ export function remainingAreaLength(areaCm2, widthCm) {
   const width = Math.max(0, amount(widthCm))
   return width ? Math.max(0, amount(areaCm2)) / width : 0
 }
+
+export function calculateSheetMaterialCost(sheetCost, sheetsUsed) {
+  return Math.max(0, amount(sheetCost)) * Math.max(0, Math.ceil(amount(sheetsUsed)))
+}
