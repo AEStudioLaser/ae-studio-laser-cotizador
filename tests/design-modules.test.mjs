@@ -15,6 +15,7 @@ import {
 import {
   calculateCricutConsumption,
   calculateServicePrice,
+  calculateSheetMaterialCost,
   remainingAreaLength,
 } from '../src/pricing/serviceQuote.js'
 
@@ -114,4 +115,5 @@ test('las hojas de sticker se descuentan según las piezas que caben', () => {
   })
 
   assert.deepEqual(usage,{unit:'hojas',amount:2})
+  assert.equal(calculateSheetMaterialCost(12,usage.amount),24)
 })
