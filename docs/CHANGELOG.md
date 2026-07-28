@@ -42,6 +42,15 @@ Todos los cambios relevantes de A&E Studio Maker se documentan aquí.
 - El inventario se descuenta únicamente al crear el pedido; guardar una cotización no altera existencias.
 - Se simplificó el mensaje de WhatsApp y se eliminó el precio por pieza y el desglose interno.
 
+### Impresión 3D multicolor
+
+- Se mantuvo intacto el flujo sencillo de impresión de un solo material.
+- Se añadió una opción “Impresión multicolor” que muestra los colores adicionales solo al activarla.
+- Cada filamento permite seleccionar material y capturar sus gramos.
+- El costo total suma todos los filamentos, incluida la purga o torre cuando se captura en los gramos de Bambu Studio.
+- El inventario de filamento puede registrarse y mostrarse en gramos.
+- Al crear el pedido se descuentan los gramos de cada rollo seleccionado; guardar una cotización no altera existencias.
+
 ### Limitaciones
 
 - La instalación local de dependencias quedó bloqueada por falta de acceso al registro de npm en el entorno de trabajo.
