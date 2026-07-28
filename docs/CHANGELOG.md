@@ -28,6 +28,19 @@ Todos los cambios relevantes de A&E Studio Maker se documentan aquí.
 - Se comprobó que clientes, inventario y pedidos existentes aparecen en Diseño creativo.
 - Los enlaces de Canva se convirtieron en enlaces HTTPS estándar y se verificó su apertura.
 - Se verificaron la copia del código OpenSCAD y la confirmación de descarga del archivo `.scad`.
+- Se añadieron pruebas de precio para confirmar que Cricut suma producto base, material y personalización.
+- Se verificó por prueba que láser conserva el producto seleccionado como precio mínimo.
+- Se añadieron pruebas de consumo de vinil por superficie y de stickers por hojas.
+
+### Cotizador Cricut e inventario
+
+- El precio de Cricut ahora suma el producto base al material y al trabajo de personalización.
+- Los productos físicos del inventario pueden seleccionarse como producto base.
+- Los materiales de Cricut del inventario pueden controlarse por superficie o por cantidad de hojas.
+- El vinil se descuenta en centímetros cuadrados según ancho × alto × cantidad.
+- Los stickers, el papel y la cartulina se descuentan por hojas necesarias.
+- El inventario se descuenta únicamente al crear el pedido; guardar una cotización no altera existencias.
+- Se simplificó el mensaje de WhatsApp y se eliminó el precio por pieza y el desglose interno.
 
 ### Limitaciones
 
