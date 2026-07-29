@@ -1,7 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {createRoot} from 'react-dom/client'
 import {
-  Archive, BarChart3, Box, Calculator, Check, ClipboardList, Cloud, CloudOff,
+  Archive, BarChart3, Bell, Box, Calculator, Check, ClipboardList, Cloud, CloudOff,
   FileText, Flame, LogIn, LogOut, Menu, MessageCircle, Package, Plus, Printer,
   RefreshCw, RotateCcw, Save, Search, Scissors, Settings, Trash2, UserRound,
   Users, Wifi, X, Palette, PencilRuler
@@ -13,7 +13,7 @@ import {cloud, isCloudConfigured} from './cloud'
 import Design3DPage from './design3d/Design3DPage'
 import CreativeProjectsPage from './creative/CreativeProjectsPage'
 import {calculateCricutConsumption, calculateServicePrice, calculateSheetMaterialCost, remainingAreaLength} from './pricing/serviceQuote'
-import {calculateFilamentBreakdown} from './pricing/print3d'
+import {calculateFilamentBreakdown, resolvePrintPrice} from './pricing/print3d'
 
 const money=v=>new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(Number(v)||0)
 const num=v=>Number(v)||0
@@ -23,7 +23,7 @@ const defaults={businessName:'A&E Studio Laser',phone:'',printer:'Bambu Lab A1',
   materials:[{id:'pla',name:'PLA',priceKg:298},{id:'petg',name:'PETG',priceKg:340}],
   laserMaterials:[{id:'mdf3',name:'MDF 3 mm',pricingMode:'sheet',sheetWidth:120,sheetHeight:240,sheetCost:160,waste:0},{id:'acrylic3',name:'Acrílico 3 mm',pricingMode:'sheet',sheetWidth:60,sheetHeight:40,sheetCost:240,waste:10},{id:'tumbler',name:'Termo para grabado',pricingMode:'unit',sheetWidth:0,sheetHeight:0,sheetCost:0,waste:0},{id:'steelplate',name:'Placa inoxidable',pricingMode:'unit',sheetWidth:0,sheetHeight:0,sheetCost:0,waste:0}],
   cricutMaterials:[{id:'vinyl',name:'Vinil adhesivo',pricingMode:'meter',sheetWidth:60,sheetHeight:100,sheetCost:65,waste:5},{id:'sticker',name:'Papel sticker A4',pricingMode:'sheet',sheetWidth:21,sheetHeight:29.7,sheetCost:12,waste:8},{id:'cardstock',name:'Cartulina 12 × 12',pricingMode:'sheet',sheetWidth:30.5,sheetHeight:30.5,sheetCost:15,waste:8}]}
-const freshQuote=s=>({client:'',project:'',catalogProduct:'',material:s.materials[0]?.id||'pla',quantity:1,weight:50,hours:4,minutes:0,extras:0,labor:0,failure:num(s.failureRate??10),profit:num(s.defaultProfit)||50,multicolor:false,extraColors:[]})
+const freshQuote=s=>({client:'',project:'',comments:'',catalogProduct:'',material:s.materials[0]?.id||'pla',quantity:1,weight:50,hours:4,minutes:0,extras:0,labor:0,failure:num(s.failureRate??10),profit:num(s.defaultProfit)||50,multicolor:false,extraColors:[],priceMode:'auto',manualTotal:''})
 const freshStock={type:'product',name:'',category:'laser',supplier:'',purchaseQty:1,purchaseTotal:0,stock:1,minStock:0,salePrice:0,purchaseDate:today(),trackingMode:'units',materialWidth:60,materialLength:100,areaRemaining:0}
 const freshClient={name:'',phone:'',email:'',notes:''}
 const unitCost=i=>num(i.purchaseTotal)/Math.max(1,num(i.purchaseQty))
@@ -36,7 +36,7 @@ function useLocal(key,initial,legacy){
 }
 
 function App(){
-  const [page,setPage]=useState('dashboard'),[open,setOpen]=useState(false)
+  const [page,setPage]=useState(()=>new URLSearchParams(location.search).get('open')==='orders'?'orders':'dashboard'),[open,setOpen]=useState(false)
   const [settings,setSettings]=useLocal('ae_settings_v10',()=>{try{const old=JSON.parse(localStorage.getItem('ae_settings_v7')||localStorage.getItem('ae_settings_v5')||localStorage.getItem('ae_stage1_settings')||'{}'),laser=old.laserMaterials||defaults.laserMaterials,extra=defaults.laserMaterials.filter(d=>!laser.some(m=>m.id===d.id));return{...defaults,...old,laserMaterials:[...laser,...extra],cricutMaterials:old.cricutMaterials||defaults.cricutMaterials}}catch{return defaults}})
   const [quotes,setQuotes]=useLocal('ae_quotes_v5',[],'ae_stage1_history')
   const [orders,setOrders]=useLocal('ae_orders_v5',[])
@@ -46,6 +46,8 @@ function App(){
   const [models,setModels]=useLocal('ae_models_v5',[])
   const [creativeProjects,setCreativeProjects]=useLocal('ae_creative_projects_v1',[])
   const [quoteDraft,setQuoteDraft]=useState(null)
+  const [notificationsEnabled,setNotificationsEnabled]=useLocal('ae_notifications_enabled_v1',false)
+  const [unreadOrders,setUnreadOrders]=useState(0)
   const [session,setSession]=useState(null),[cloudReady,setCloudReady]=useState(false)
   const [syncStatus,setSyncStatus]=useState(isCloudConfigured?'signed-out':'local'),[lastSynced,setLastSynced]=useState('')
   const skipUpload=useRef(false),stateRef=useRef(null)
@@ -77,6 +79,38 @@ function App(){
     setSyncStatus('synced');setLastSynced(new Date().toISOString())
   },[session?.user?.id,deviceId])
 
+  const clearOrderNotifications=useCallback(()=>{
+    setUnreadOrders(0)
+    navigator.clearAppBadge?.().catch?.(()=>{})
+  },[])
+
+  const enableNotifications=useCallback(async()=>{
+    if(!('Notification'in window))return alert('Este dispositivo no admite notificaciones de la aplicación.')
+    const permission=await Notification.requestPermission()
+    const enabled=permission==='granted'
+    setNotificationsEnabled(enabled)
+    if(!enabled)return alert('No se activaron las notificaciones. Puedes permitirlas desde la configuración del dispositivo.')
+    clearOrderNotifications()
+    alert('Notificaciones de pedidos activadas en este dispositivo.')
+  },[setNotificationsEnabled,clearOrderNotifications])
+
+  const announceOrders=useCallback(async(newOrders)=>{
+    if(!newOrders?.length)return
+    setUnreadOrders(current=>{
+      const next=current+newOrders.length
+      navigator.setAppBadge?.(next).catch?.(()=>{})
+      return next
+    })
+    if(!notificationsEnabled||!('Notification'in window)||Notification.permission!=='granted')return
+    const latest=newOrders[0],title=newOrders.length===1?'Nuevo pedido':`${newOrders.length} pedidos nuevos`
+    const options={body:`${latest.project||'Pedido'} · ${latest.client||'Sin cliente'} · ${money(latest.total)}`,icon:'/icons/icon-192.png',badge:'/icons/icon-192.png',tag:`order-${latest.id}`,data:{url:'/?open=orders'}}
+    try{
+      const registration='serviceWorker'in navigator?await navigator.serviceWorker.ready:null
+      if(registration?.showNotification)await registration.showNotification(title,options)
+      else new Notification(title,options)
+    }catch{}
+  },[notificationsEnabled])
+
   const pullCloud=useCallback(async()=>{
     if(!cloud||!session?.user)return
     setSyncStatus(navigator.onLine?'syncing':'offline')
@@ -106,9 +140,14 @@ function App(){
     if(!cloudReady||!session?.user||!cloud)return
     const channel=cloud.channel(`business-state-${session.user.id}`).on('postgres_changes',{
       event:'UPDATE',schema:'public',table:'business_state',filter:`user_id=eq.${session.user.id}`
-    },event=>{if(event.new?.device_id===deviceId)return;applyCloudState(event.new?.payload);setSyncStatus('synced');setLastSynced(event.new?.updated_at||new Date().toISOString())}).subscribe()
+    },event=>{
+      if(event.new?.device_id===deviceId)return
+      const incoming=Array.isArray(event.new?.payload?.orders)?event.new.payload.orders:[],known=new Set((stateRef.current?.orders||[]).map(order=>order.id))
+      announceOrders(incoming.filter(order=>!known.has(order.id)))
+      applyCloudState(event.new?.payload);setSyncStatus('synced');setLastSynced(event.new?.updated_at||new Date().toISOString())
+    }).subscribe()
     return()=>{cloud.removeChannel(channel)}
-  },[cloudReady,session?.user?.id,deviceId,applyCloudState])
+  },[cloudReady,session?.user?.id,deviceId,applyCloudState,announceOrders])
   useEffect(()=>{
     const online=()=>{if(session?.user)pullCloud().catch(()=>{})}
     const offline=()=>setSyncStatus('offline')
@@ -126,13 +165,13 @@ function App(){
     <aside className={`sidebar ${open?'open':''}`}><div className="brand"><img src="/logo-ae.png" alt="A&E Studio Laser"/><div><strong>A&E Studio Maker</strong><span>A&E Studio Laser</span></div></div>
       <nav>{nav.map(([id,label,Icon])=><button key={id} className={page===id?'active':''} onClick={()=>go(id)}><Icon size={19}/>{label}</button>)}</nav><button className={`sidebarSync ${syncStatus}`} onClick={()=>go('cloud')}>{syncStatus==='offline'||syncStatus==='error'||syncStatus==='local'?<CloudOff size={16}/>:<Cloud size={16}/>}<span>{syncLabels[syncStatus]}</span></button></aside>
     {open&&<button className="scrim" onClick={()=>setOpen(false)} aria-label="Cerrar menú"/>}
-    <main className="main"><header className="topbar"><button className="menuButton" onClick={()=>setOpen(!open)}>{open?<X/>:<Menu/>}</button><div><h1>{nav.find(n=>n[0]===page)?.[1]}</h1><p>A&E Studio Laser</p></div></header>
+    <main className="main"><header className="topbar"><button className="menuButton" onClick={()=>setOpen(!open)}>{open?<X/>:<Menu/>}</button><div className="topbarTitle"><h1>{nav.find(n=>n[0]===page)?.[1]}</h1><p>A&E Studio Laser</p></div><button className={`notificationButton ${notificationsEnabled?'enabled':''}`} aria-label={notificationsEnabled?'Ver pedidos nuevos':'Activar notificaciones'} title={notificationsEnabled?'Ver pedidos nuevos':'Activar notificaciones'} onClick={()=>notificationsEnabled?(clearOrderNotifications(),go('orders')):enableNotifications()}><Bell size={20}/>{unreadOrders>0&&<span>{unreadOrders>99?'99+':unreadOrders}</span>}</button></header>
       <div className="content">
-        {page==='dashboard'&&<Dashboard orders={orders} inventory={inventory} quotes={quotes} go={go}/>}
-        {page==='quote'&&<Quote settings={settings} inventory={inventory} setInventory={setInventory} catalog={catalog} quotes={quotes} setQuotes={setQuotes} orders={orders} setOrders={setOrders} clients={clients} setClients={setClients} models={models} setModels={setModels} designDraft={quoteDraft} onDraftConsumed={()=>setQuoteDraft(null)}/>}
+        {page==='dashboard'&&<Dashboard orders={orders} inventory={inventory} quotes={quotes} go={go} notificationsEnabled={notificationsEnabled} onEnableNotifications={enableNotifications}/>}
+        {page==='quote'&&<Quote settings={settings} inventory={inventory} setInventory={setInventory} catalog={catalog} quotes={quotes} setQuotes={setQuotes} orders={orders} setOrders={setOrders} clients={clients} setClients={setClients} models={models} setModels={setModels} designDraft={quoteDraft} onDraftConsumed={()=>setQuoteDraft(null)} onOrderCreated={order=>announceOrders([order])}/>}
         {page==='design3d'&&<Design3DPage onQuote={draft=>{setQuoteDraft(draft);go('quote')}}/>}
-        {page==='laser'&&<ServiceQuote service="laser" inventory={inventory} setInventory={setInventory} catalog={catalog} settings={settings} quotes={quotes} setQuotes={setQuotes} orders={orders} setOrders={setOrders} clients={clients} setClients={setClients}/>}
-        {page==='cricut'&&<ServiceQuote service="cricut" inventory={inventory} setInventory={setInventory} catalog={catalog} settings={settings} quotes={quotes} setQuotes={setQuotes} orders={orders} setOrders={setOrders} clients={clients} setClients={setClients}/>}
+        {page==='laser'&&<ServiceQuote service="laser" inventory={inventory} setInventory={setInventory} catalog={catalog} settings={settings} quotes={quotes} setQuotes={setQuotes} orders={orders} setOrders={setOrders} clients={clients} setClients={setClients} onOrderCreated={order=>announceOrders([order])}/>}
+        {page==='cricut'&&<ServiceQuote service="cricut" inventory={inventory} setInventory={setInventory} catalog={catalog} settings={settings} quotes={quotes} setQuotes={setQuotes} orders={orders} setOrders={setOrders} clients={clients} setClients={setClients} onOrderCreated={order=>announceOrders([order])}/>}
         {page==='creative'&&<CreativeProjectsPage projects={creativeProjects} setProjects={setCreativeProjects} clients={clients} inventory={inventory} orders={orders} products={catalog}/>}
         {page==='catalog'&&<Catalog products={catalog} setProducts={setCatalog}/>}
         {page==='orders'&&<Orders orders={orders} setOrders={setOrders}/>}
@@ -163,10 +202,13 @@ function CloudPage({configured,session,status,lastSynced,onSignIn,onSignUp,onSig
   return <><section className="cloudHero connected"><div className="cloudHeroIcon"><Wifi size={34}/></div><div><span>Cuenta conectada</span><h2>{session.user.email}</h2><p>{statusText[status]||'Sincronización activa'}</p></div></section><div className="twoColumns"><Card title="Estado de la nube" subtitle={lastSynced?`Última sincronización: ${new Date(lastSynced).toLocaleString('es-MX')}`:'Preparando la primera sincronización'}><div className={`syncState ${status}`}><Cloud size={28}/><div><b>{statusText[status]}</b><p>Los cambios se guardan automáticamente. También conservamos una copia en este dispositivo.</p></div></div><div className="actions"><button className="primary" onClick={onSync} disabled={status==='syncing'}><RefreshCw className={status==='syncing'?'spin':''} size={18}/>Sincronizar ahora</button></div></Card><Card title="Dispositivos" subtitle="Cómo abrir tus datos en otro equipo."><ol className="deviceSteps"><li>Abre la misma dirección de la aplicación.</li><li>Entra a <b>Sincronización</b>.</li><li>Inicia sesión con este mismo correo y contraseña.</li></ol><button onClick={onSignOut}><LogOut size={18}/>Cerrar sesión en este dispositivo</button></Card></div></>
 }
 
-function Dashboard({orders,inventory,quotes,go}){
+function Dashboard({orders,inventory,quotes,go,notificationsEnabled,onEnableNotifications}){
+  const [choosingQuote,setChoosingQuote]=useState(false)
   const delivered=orders.filter(o=>o.status==='delivered'),sales=delivered.reduce((s,o)=>s+num(o.total),0),cost=delivered.reduce((s,o)=>s+num(o.productionCost),0)
   const pending=orders.filter(o=>!['delivered','cancelled'].includes(o.status)).length,low=inventory.filter(i=>num(i.stock)<=num(i.minStock)),investment=inventory.reduce((s,i)=>s+unitCost(i)*num(i.stock),0)
-  return <><section className="hero"><div><span>Panel del negocio</span><h2>Todo tu taller en un solo lugar</h2><p>Cotiza, controla pedidos y conoce el valor de tu inventario.</p></div><button className="primary" onClick={()=>go('quote')}><Plus size={18}/>Nueva cotización</button></section>
+  return <><section className="hero"><div><span>Panel del negocio</span><h2>Todo tu taller en un solo lugar</h2><p>Cotiza, controla pedidos y conoce el valor de tu inventario.</p></div><button className="primary" onClick={()=>setChoosingQuote(!choosingQuote)}><Plus size={18}/>Nueva cotización</button></section>
+    {choosingQuote&&<section className="quotePicker" aria-label="Selecciona el tipo de cotización"><div><b>¿Qué deseas cotizar?</b><span>Selecciona el servicio para abrir el formulario correcto.</span></div><div className="quotePickerOptions"><button onClick={()=>go('quote')}><Calculator/><b>Impresión 3D</b><span>Piezas y modelos impresos</span></button><button onClick={()=>go('laser')}><Flame/><b>Láser</b><span>Corte y grabado</span></button><button onClick={()=>go('cricut')}><Scissors/><b>Cricut</b><span>Vinil, stickers y papel</span></button></div></section>}
+    {!notificationsEnabled&&<button className="notificationPrompt" onClick={onEnableNotifications}><Bell size={19}/><span><b>Activa los avisos de pedidos</b><small>Recibe una alerta cuando se cree un pedido desde otro dispositivo.</small></span></button>}
     <div className="stats"><Stat label="Ventas entregadas" value={money(sales)} tone="blue"/><Stat label="Utilidad estimada" value={money(sales-cost)} tone="green"/><Stat label="Pedidos activos" value={pending} tone="orange"/><Stat label="Inventario invertido" value={money(investment)} tone="purple"/></div>
     <div className="twoColumns"><Card title="Pedidos recientes" subtitle={`${orders.length} registrados`}>{orders.length?orders.slice(0,5).map(o=><div className="listRow" key={o.id}><div><b>{o.project||'Pedido'}</b><span>{o.client||'Sin cliente'}</span></div><div className="right"><Status value={o.status}/><b>{money(o.total)}</b></div></div>):<Empty text="Aún no hay pedidos."/>}</Card>
       <Card title="Alertas de inventario" subtitle={`${low.length} con existencia baja`}>{low.length?low.slice(0,6).map(i=><div className="listRow" key={i.id}><div><b>{i.name}</b><span>{i.category||'Sin categoría'}</span></div><span className="stockAlert">{num(i.stock)} disponibles</span></div>):<Empty text="Sin alertas de existencias."/>}</Card></div>
@@ -174,14 +216,18 @@ function Dashboard({orders,inventory,quotes,go}){
   </>
 }
 
-function Quote({settings,inventory,setInventory,catalog,quotes,setQuotes,orders,setOrders,clients,setClients,models,setModels,designDraft,onDraftConsumed}){
+function Quote({settings,inventory,setInventory,catalog,quotes,setQuotes,orders,setOrders,clients,setClients,models,setModels,designDraft,onDraftConsumed,onOrderCreated}){
   const fromDesign=()=>designDraft?{...freshQuote(settings),project:designDraft.project,quantity:designDraft.quantity,weight:0,hours:0,minutes:0,designMeta:designDraft.designMeta}:freshQuote(settings)
   const [form,setForm]=useState(fromDesign),[saved,setSaved]=useState(false)
   useEffect(()=>{if(!designDraft)return;setForm({...freshQuote(settings),project:designDraft.project,quantity:designDraft.quantity,weight:0,hours:0,minutes:0,designMeta:designDraft.designMeta});setSaved(false);onDraftConsumed?.()},[designDraft?.id])
   const inventoryMaterials=(inventory||[]).filter(i=>i.category==='3d'&&i.type!=='product'&&num(i.stock)>0).map(i=>({id:`stock-${i.id}`,name:`${i.name} (Inventario: ${num(i.stock)}${i.trackingMode==='grams'?' g':''})`,priceKg:i.trackingMode==='grams'?unitCost(i)*1000:unitCost(i),inventoryId:i.id,trackingMode:i.trackingMode||'units'})),materialCatalog=[...(settings.materials||[]),...inventoryMaterials],catalogProducts=(catalog||[]).filter(p=>(p.service==='3d'||p.service==='all')&&p.status!=='hidden')
   const update=(k,v)=>{setSaved(false);setForm({...form,[k]:v})},material=materialCatalog.find(m=>m.id===form.material)||materialCatalog[0]||{name:'Material',priceKg:0},catalogItem=catalogProducts.find(p=>p.id===form.catalogProduct)
   const extraColors=(form.multicolor?form.extraColors:[]).map(color=>({...color,material:materialCatalog.find(m=>m.id===color.material)||materialCatalog[0]}))
-  const calc=useMemo(()=>{const qty=Math.max(1,num(form.quantity)),h=num(form.hours)+num(form.minutes)/60,filament=calculateFilamentBreakdown({primaryMaterial:material,primaryWeight:form.weight,extraColors}),materialCost=filament.totalCost,electricity=h*num(settings.printerWatts)/1000*num(settings.electricityPrice),wear=h*num(settings.wearPerHour),repeatableCost=materialCost+electricity+wear,failureCost=repeatableCost*Math.max(0,num(form.failure))/100,productionCost=repeatableCost+failureCost+num(form.labor)+num(form.extras),raw=productionCost*(1+num(form.profit)/100),catalogBase=num(catalogItem?.price)*qty,step=Math.max(1,num(settings.roundTo)),total=Math.ceil(Math.max(raw,catalogBase)/step)*step;return{printHours:h,materialCost,electricity,wear,failureCost,productionCost,catalogBase,profitAmount:total-productionCost,total,unit:total/qty,filamentLines:filament.lines,totalFilamentGrams:filament.totalGrams,inventoryUsage:filament.inventoryUsage}},[form,material,catalogItem,settings,materialCatalog])
+  const calc=useMemo(()=>{
+    const qty=Math.max(1,num(form.quantity)),h=num(form.hours)+num(form.minutes)/60,filament=calculateFilamentBreakdown({primaryMaterial:material,primaryWeight:form.weight,extraColors}),materialCost=filament.totalCost,electricity=h*num(settings.printerWatts)/1000*num(settings.electricityPrice),wear=h*num(settings.wearPerHour),repeatableCost=materialCost+electricity+wear,failureCost=repeatableCost*Math.max(0,num(form.failure))/100,productionCost=repeatableCost+failureCost+num(form.labor)+num(form.extras),raw=productionCost*(1+num(form.profit)/100),catalogBase=num(catalogItem?.price)*qty,step=Math.max(1,num(settings.roundTo)),automaticTotal=Math.ceil(Math.max(raw,catalogBase)/step)*step
+    const pricing=resolvePrintPrice({productionCost,automaticTotal,quantity:qty,priceMode:form.priceMode,manualTotal:form.manualTotal})
+    return{printHours:h,materialCost,electricity,wear,failureCost,productionCost,catalogBase,...pricing,filamentLines:filament.lines,totalFilamentGrams:filament.totalGrams,inventoryUsage:filament.inventoryUsage}
+  },[form,material,catalogItem,settings,materialCatalog])
   const snapshot=()=>({id:uid(),folio:`COT-${Date.now().toString().slice(-7)}`,date:new Date().toISOString(),...form,materialName:material.name,catalogName:catalogItem?.name||'',...calc})
   const ensureClient=()=>{const name=form.client.trim();if(name&&!clients.some(c=>c.name.toLowerCase()===name.toLowerCase()))setClients([{id:uid(),name,phone:'',email:'',notes:''},...clients])}
   const save=()=>{const q=snapshot();setQuotes([q,...quotes]);ensureClient();setSaved(true);return q}
@@ -190,10 +236,11 @@ function Quote({settings,inventory,setInventory,catalog,quotes,setQuotes,orders,
     if(missing){const item=inventory.find(i=>i.id===missing[0]);return alert(`No hay suficiente ${item?.name||'filamento'}. Disponible: ${num(item?.stock)} g.`)}
     const q=save()
     if(Object.keys(calc.inventoryUsage).length)setInventory(inventory.map(item=>calc.inventoryUsage[item.id]?{...item,stock:Math.max(0,num(item.stock)-calc.inventoryUsage[item.id]),updatedAt:new Date().toISOString()}:item))
-    setOrders([{...q,id:uid(),quoteId:q.id,status:'pending',createdAt:new Date().toISOString(),dueDate:''},...orders])
+    const createdOrder={...q,id:uid(),quoteId:q.id,status:'pending',createdAt:new Date().toISOString(),dueDate:''}
+    setOrders([createdOrder,...orders]);onOrderCreated?.(createdOrder)
     alert(`Cotización guardada y pedido creado.${Object.keys(calc.inventoryUsage).length?' Inventario de filamento actualizado.':''}`)
   }
-  const message=()=>encodeURIComponent(`*${settings.businessName||'A&E Studio Laser'}*\nCotización\nCliente: ${form.client||'—'}\nProyecto: ${form.project||catalogItem?.name||'—'}\nCantidad: ${form.quantity}\n*Total: ${money(calc.total)}*\nVigencia: ${settings.quoteValidity||15} días`)
+  const message=()=>encodeURIComponent(`*${settings.businessName||'A&E Studio Laser'}*\nCotización\nCliente: ${form.client||'—'}\nProyecto: ${form.project||catalogItem?.name||'—'}\nCantidad: ${form.quantity}${form.comments?.trim()?`\nComentarios: ${form.comments.trim()}`:''}\n*Total: ${money(calc.total)}*\nVigencia: ${settings.quoteValidity||15} días`)
   const saveModel=()=>{if(!form.project.trim())return alert('Escribe el proyecto.');setModels([{id:uid(),name:form.project.trim(),material:form.material,weight:form.weight,hours:form.hours,minutes:form.minutes},...models]);alert('Modelo guardado.')}
   const loadModel=id=>{const m=models.find(x=>x.id===id);if(m)setForm({...form,project:m.name,material:m.material,weight:m.weight,hours:m.hours,minutes:m.minutes})}
   const addColor=()=>{setSaved(false);setForm({...form,extraColors:[...form.extraColors,{id:uid(),material:materialCatalog[0]?.id||'',weight:0}]})}
@@ -203,17 +250,18 @@ function Quote({settings,inventory,setInventory,catalog,quotes,setQuotes,orders,
     {form.designMeta&&<div className="usageNote designTransferNote"><b>Datos recibidos de Diseño 3D</b><span>{form.designMeta.type}: {form.designMeta.length} × {form.designMeta.height} × {form.designMeta.thickness} {form.designMeta.unit}. Captura el peso y el tiempo reales desde Bambu Studio antes de guardar la cotización.</span></div>}
     {models.length>0&&<Field label="Cargar modelo guardado" full><select defaultValue="" onChange={e=>{loadModel(e.target.value);e.target.value=''}}><option value="">Seleccionar modelo…</option>{models.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></Field>}
     {catalogProducts.length>0&&<Field label="Producto del catálogo (opcional)" full><select value={form.catalogProduct} onChange={e=>{const item=catalogProducts.find(p=>p.id===e.target.value);setForm({...form,catalogProduct:e.target.value,project:form.project||item?.name||''});setSaved(false)}}><option value="">Cotización desde cero</option>{catalogProducts.map(p=><option key={p.id} value={p.id}>{p.name} — {money(p.price)}</option>)}</select></Field>}
-    <div className="formGrid"><Field label="Cliente"><input value={form.client} onChange={e=>update('client',e.target.value)} placeholder="Nombre del cliente"/></Field><Field label="Proyecto"><input value={form.project} onChange={e=>update('project',e.target.value)} placeholder="Ej. Llavero personalizado"/></Field>
+    <div className="formGrid"><Field label="Cliente"><input value={form.client} onChange={e=>update('client',e.target.value)} placeholder="Nombre del cliente"/></Field><Field label="Proyecto"><input value={form.project} onChange={e=>update('project',e.target.value)} placeholder="Ej. Llavero personalizado"/></Field><Field label="Detalles o comentarios" full><textarea rows="3" value={form.comments||''} onChange={e=>update('comments',e.target.value)} placeholder="Ej. 5 llaveros azules, 3 rojos y 2 blancos"/></Field>
       <Field label="Material"><select value={form.material} onChange={e=>update('material',e.target.value)}><optgroup label="Materiales configurados">{(settings.materials||[]).map(m=><option key={m.id} value={m.id}>{m.name} — {money(m.priceKg)}/kg</option>)}</optgroup>{inventoryMaterials.length>0&&<optgroup label="Inventario de Impresión 3D">{inventoryMaterials.map(m=><option key={m.id} value={m.id}>{m.name} — {money(m.priceKg)}/kg</option>)}</optgroup>}</select></Field><Field label="Cantidad"><input type="number" min="1" value={form.quantity} onChange={e=>update('quantity',e.target.value)}/></Field>
       <Field label={form.multicolor?'Peso del color principal (g)':'Peso total (g)'}><input type="number" min="0" value={form.weight} onChange={e=>update('weight',e.target.value)}/></Field><div className="splitFields"><Field label="Horas"><input type="number" min="0" value={form.hours} onChange={e=>update('hours',e.target.value)}/></Field><Field label="Minutos"><input type="number" min="0" max="59" value={form.minutes} onChange={e=>update('minutes',e.target.value)}/></Field></div>
       <Field label="Extras ($)"><input type="number" min="0" value={form.extras} onChange={e=>update('extras',e.target.value)}/></Field><Field label="Mano de obra ($)"><input type="number" min="0" value={form.labor} onChange={e=>update('labor',e.target.value)}/></Field><Field label="Riesgo de falla (%)"><input type="number" min="0" max="100" step="1" value={form.failure} onChange={e=>update('failure',e.target.value)}/></Field><Field label={`Ganancia: ${form.profit}%`}><input type="range" min="0" max="150" value={form.profit} onChange={e=>update('profit',e.target.value)}/></Field></div>
+    <div className="priceModeBox"><div><b>Precio final</b><span>Usa el cálculo automático o define una promoción.</span></div><div className="priceModeOptions"><button className={form.priceMode!=='manual'?'active':''} onClick={()=>update('priceMode','auto')}>Automático</button><button className={form.priceMode==='manual'?'active':''} onClick={()=>update('priceMode','manual')}>Manual / promoción</button></div>{form.priceMode==='manual'&&<Field label="Total a cobrar ($)"><input type="number" min="0" step=".01" value={form.manualTotal} onChange={e=>update('manualTotal',e.target.value)} placeholder={String(calc.automaticTotal)}/></Field>}<div className={`priceHealth ${calc.belowCost?'warning':'healthy'}`}><span>Sugerencia automática: <b>{money(calc.automaticTotal)}</b></span>{calc.isManual&&<span>Utilidad real: <b>{money(calc.profitAmount)}</b> · Margen: <b>{calc.marginPercent.toFixed(1)}%</b></span>}{calc.belowCost&&<strong>El precio manual está por debajo del costo de producción.</strong>}</div></div>
     <label className="checkField multicolorToggle"><input type="checkbox" checked={form.multicolor} onChange={e=>update('multicolor',e.target.checked)}/><span>Impresión multicolor</span></label>
     {form.multicolor&&<div className="multicolorBox"><div className="multicolorHeader"><div><b>Filamentos adicionales</b><small>Captura los gramos totales que reporta Bambu Studio, incluida la purga o torre.</small></div><button onClick={addColor}><Plus size={17}/>Agregar color</button></div>{form.extraColors.length?form.extraColors.map(color=><div className="multicolorRow" key={color.id}><select aria-label="Material o color adicional" value={color.material} onChange={e=>updateColor(color.id,'material',e.target.value)}>{materialCatalog.map(m=><option key={m.id} value={m.id}>{m.name} — {money(m.priceKg)}/kg</option>)}</select><label><span>Peso (g)</span><input aria-label="Peso del color adicional (g)" type="number" min="0" step=".1" value={color.weight} onChange={e=>updateColor(color.id,'weight',e.target.value)}/></label><button className="iconButton danger" aria-label="Eliminar color" onClick={()=>removeColor(color.id)}><Trash2 size={16}/></button></div>):<p className="multicolorEmpty">Agrega otro color para incluirlo en el costo y en el consumo de filamento.</p>}<div className="multicolorTotal"><span>Filamento total</span><b>{calc.totalFilamentGrams.toFixed(1)} g</b></div></div>}
     {saved&&<div className="success"><Check size={17}/>Cotización guardada</div>}<div className="actions"><button className="primary" onClick={save}><Save size={18}/>Guardar</button><button onClick={order}><ClipboardList size={18}/>Crear pedido</button><button onClick={()=>window.location.href=`https://wa.me/?text=${message()}`}><MessageCircle size={18}/>WhatsApp</button><button onClick={()=>window.print()}><Printer size={18}/>PDF / Imprimir</button><button onClick={saveModel}><Archive size={18}/>Guardar modelo</button><button onClick={()=>{setForm(freshQuote(settings));setSaved(false)}}><RotateCcw size={18}/>Nueva</button></div>
-  </Card><aside className="resultCard printArea"><img src="/logo-ae.png" className="printLogo" alt="A&E Studio Laser"/><span>Total sugerido</span><strong>{money(calc.total)}</strong><div className="unitPrice"><span>Precio por pieza</span><b>{money(calc.unit)}</b></div><h3>Desglose</h3>{calc.catalogBase>0&&<Line label="Precio base de catálogo" value={calc.catalogBase}/>} {form.multicolor?calc.filamentLines.map((line,index)=><Line key={`${line.id}-${index}`} label={`${line.name} · ${line.grams} g`} value={line.cost}/>):<Line label="Material" value={calc.materialCost}/>}<Line label="Electricidad" value={calc.electricity}/><Line label="Desgaste" value={calc.wear}/><Line label={`Reserva por fallas (${num(form.failure)}%)`} value={calc.failureCost}/><Line label="Mano de obra" value={form.labor}/><Line label="Extras" value={form.extras}/><Line label="Costos conocidos" value={calc.productionCost} bold/><Line label={catalogItem?'Diferencia sobre costos conocidos':'Ganancia'} value={calc.profitAmount}/><small>{form.multicolor?`Filamento total: ${calc.totalFilamentGrams.toFixed(1)} g. `:''}La reserva por fallas cubre material, electricidad y desgaste que habría que repetir. {catalogItem?'Se respeta como mínimo el precio vigente del catálogo. ':''}Vigencia: {settings.quoteValidity||15} días</small></aside></div>
+  </Card><aside className={`resultCard printArea ${calc.belowCost?'loss':''}`}><img src="/logo-ae.png" className="printLogo" alt="A&E Studio Laser"/><span>{calc.isManual?'Total manual':'Total sugerido'}</span><strong>{money(calc.total)}</strong><div className="unitPrice"><span>Precio por pieza</span><b>{money(calc.unit)}</b></div>{form.comments?.trim()&&<div className="resultComments"><b>Comentarios</b><span>{form.comments.trim()}</span></div>}<h3>Desglose</h3>{calc.isManual&&<Line label="Sugerencia automática" value={calc.automaticTotal}/>} {calc.catalogBase>0&&<Line label="Precio base de catálogo" value={calc.catalogBase}/>} {form.multicolor?calc.filamentLines.map((line,index)=><Line key={`${line.id}-${index}`} label={`${line.name} · ${line.grams} g`} value={line.cost}/>):<Line label="Material" value={calc.materialCost}/>}<Line label="Electricidad" value={calc.electricity}/><Line label="Desgaste" value={calc.wear}/><Line label={`Reserva por fallas (${num(form.failure)}%)`} value={calc.failureCost}/><Line label="Mano de obra" value={form.labor}/><Line label="Extras" value={form.extras}/><Line label="Costos conocidos" value={calc.productionCost} bold/><Line label={calc.profitAmount<0?'Pérdida':catalogItem?'Diferencia sobre costos conocidos':'Ganancia'} value={calc.profitAmount}/><small>{calc.isManual?`Precio manual · margen real ${calc.marginPercent.toFixed(1)}%. `:''}{form.multicolor?`Filamento total: ${calc.totalFilamentGrams.toFixed(1)} g. `:''}La reserva por fallas cubre material, electricidad y desgaste que habría que repetir. {catalogItem&&!calc.isManual?'Se respeta como mínimo el precio vigente del catálogo. ':''}Vigencia: {settings.quoteValidity||15} días</small></aside></div>
 }
 
-function ServiceQuote({service,inventory,setInventory,catalog:productCatalog,settings,quotes,setQuotes,orders,setOrders,clients,setClients}){
+function ServiceQuote({service,inventory,setInventory,catalog:productCatalog,settings,quotes,setQuotes,orders,setOrders,clients,setClients,onOrderCreated}){
   const isLaser=service==='laser'
   const baseCatalog=(isLaser?settings.laserMaterials:settings.cricutMaterials)||(isLaser?defaults.laserMaterials:defaults.cricutMaterials)
   const rawInventory=(inventory||[]).filter(i=>i.category===service&&i.type==='raw'&&(i.trackingMode==='area'?num(i.areaRemaining)>0:num(i.stock)>0))
@@ -225,7 +273,7 @@ function ServiceQuote({service,inventory,setInventory,catalog:productCatalog,set
   const catalog=[...baseCatalog,...inventoryCatalog]
   const catalogProducts=(productCatalog||[]).filter(p=>(p.service===service||p.service==='all')&&p.status!=='hidden')
   const inventoryProducts=(inventory||[]).filter(i=>i.category===service&&i.type==='product'&&num(i.stock)>0)
-  const initial={client:'',project:'',catalogProduct:'',jobType:isLaser?'cut':'vinyl',materialSource:'studio',material:catalog[0]?.id||'',quantity:1,width:isLaser?30:10,height:isLaser?30:10,hours:0,minutes:isLaser?20:10,labor:0,design:0,assembly:0,extras:0,profit:num(settings.defaultProfit)||50,manualMaterial:'',fullSheet:false,advanced:false}
+  const initial={client:'',project:'',comments:'',catalogProduct:'',jobType:isLaser?'cut':'vinyl',materialSource:'studio',material:catalog[0]?.id||'',quantity:1,width:isLaser?30:10,height:isLaser?30:10,hours:0,minutes:isLaser?20:10,labor:0,design:0,assembly:0,extras:0,profit:num(settings.defaultProfit)||50,manualMaterial:'',fullSheet:false,advanced:false}
   const [form,setForm]=useState(initial),[saved,setSaved]=useState(false)
   const update=(k,v)=>{setSaved(false);setForm({...form,[k]:v})}
   const material=catalog.find(m=>m.id===form.material)||catalog[0]||{name:'Material',sheetWidth:1,sheetHeight:1,sheetCost:0,waste:10}
@@ -262,14 +310,15 @@ function ServiceQuote({service,inventory,setInventory,catalog:productCatalog,set
       }
       return item
     }))
-    setOrders([{...q,id:uid(),quoteId:q.id,status:'pending',createdAt:new Date().toISOString(),dueDate:''},...orders])
+    const createdOrder={...q,id:uid(),quoteId:q.id,status:'pending',createdAt:new Date().toISOString(),dueDate:''}
+    setOrders([createdOrder,...orders]);onOrderCreated?.(createdOrder)
     alert(`Cotización guardada y pedido creado.${materialItem||productItem?' Inventario actualizado.':''}`)
   }
-  const message=()=>encodeURIComponent(`*${settings.businessName||'A&E Studio Laser'}*\nCotización\nCliente: ${form.client||'—'}\nProyecto: ${form.project||selectedProduct?.name||'—'}\nMedidas: ${form.width} × ${form.height} cm\nCantidad: ${form.quantity}\n*Total: ${money(calc.total)}*\nVigencia: ${settings.quoteValidity||15} días`)
+  const message=()=>encodeURIComponent(`*${settings.businessName||'A&E Studio Laser'}*\nCotización\nCliente: ${form.client||'—'}\nProyecto: ${form.project||selectedProduct?.name||'—'}\nMedidas: ${form.width} × ${form.height} cm\nCantidad: ${form.quantity}${form.comments?.trim()?`\nComentarios: ${form.comments.trim()}`:''}\n*Total: ${money(calc.total)}*\nVigencia: ${settings.quoteValidity||15} días`)
   return <div className="quoteLayout"><Card title={`Cotizador ${isLaser?'láser':'Cricut'}`} subtitle="Medidas y tiempo de máquina para un resultado realista.">
     <Field label={isLaser?'Producto del catálogo o inventario (opcional)':'Producto base (opcional)'} full><select value={form.catalogProduct} onChange={e=>{const item=catalogProducts.find(p=>p.id===e.target.value)||inventoryProducts.find(p=>`stock-${p.id}`===e.target.value);setForm({...form,catalogProduct:e.target.value,project:form.project||item?.name||'',materialSource:isLaser&&item?'catalog':'studio'});setSaved(false)}}><option value="">Cotización desde cero</option>{catalogProducts.length>0&&<optgroup label="Catálogo">{catalogProducts.map(p=><option key={p.id} value={p.id}>{p.name} — {money(p.price)}</option>)}</optgroup>}{inventoryProducts.length>0&&<optgroup label="Productos del inventario">{inventoryProducts.map(p=><option key={p.id} value={`stock-${p.id}`}>{p.name} — {money(num(p.salePrice)||unitCost(p))} · {num(p.stock)} disponibles</option>)}</optgroup>}</select></Field>
     <div className="formGrid">
-    <Field label="Cliente"><input value={form.client} onChange={e=>update('client',e.target.value)} placeholder="Nombre del cliente"/></Field><Field label="Proyecto"><input value={form.project} onChange={e=>update('project',e.target.value)} placeholder={isLaser?'Ej. Caja para regalo':'Ej. Stickers personalizados'}/></Field>
+    <Field label="Cliente"><input value={form.client} onChange={e=>update('client',e.target.value)} placeholder="Nombre del cliente"/></Field><Field label="Proyecto"><input value={form.project} onChange={e=>update('project',e.target.value)} placeholder={isLaser?'Ej. Caja para regalo':'Ej. Stickers personalizados'}/></Field><Field label="Detalles o comentarios" full><textarea rows="3" value={form.comments||''} onChange={e=>update('comments',e.target.value)} placeholder="Colores, acabados, nombres u otras indicaciones"/></Field>
     <Field label="Tipo de trabajo"><select value={form.jobType} onChange={e=>{const jobType=e.target.value;setForm({...form,jobType,materialSource:isLaser&&jobType==='engrave'?'client':'studio'});setSaved(false)}}>{isLaser?<><option value="cut">Corte</option><option value="engrave">Grabado</option><option value="both">Corte y grabado</option></>:<><option value="vinyl">Vinil</option><option value="stickers">Stickers</option><option value="paper">Papel / cartulina</option><option value="printcut">Impresión y corte</option></>}</select></Field>
     <Field label="Origen del material o pieza"><select value={form.materialSource} onChange={e=>update('materialSource',e.target.value)}><option value="studio">Lo proporciona A&E</option><option value="client">Lo proporciona el cliente</option>{selectedProduct&&isLaser&&<option value="catalog">Incluido en el precio del producto</option>}</select></Field>
     <Field label="Material"><select disabled={form.materialSource!=='studio'} value={form.material} onChange={e=>update('material',e.target.value)}><optgroup label="Materiales configurados">{baseCatalog.map(m=><option key={m.id} value={m.id}>{m.name} — {money(m.sheetCost)}</option>)}</optgroup>{inventoryCatalog.length>0&&<optgroup label={`Inventario de ${isLaser?'Láser':'Cricut'}`}>{inventoryCatalog.map(m=><option key={m.id} value={m.id}>{m.name} — {money(m.sheetCost)} por compra</option>)}</optgroup>}</select></Field>
@@ -281,7 +330,7 @@ function ServiceQuote({service,inventory,setInventory,catalog:productCatalog,set
     {selectedProduct&&<div className="usageNote catalogQuoteNote"><b>{selectedProduct.name}: {money(selectedProduct.price)} por pieza</b><span>{calc.addProductToService?'El producto base se suma al material y al trabajo de personalización.':selectedProduct.source==='inventory'?'Se usa como precio mínimo y se descontará del inventario al crear el pedido.':'Este precio se respeta como mínimo porque el producto está marcado como sobre pedido.'}</span></div>}
     <div className="usageNote">{form.materialSource==='catalog'?<><b>Producto incluido en el precio seleccionado</b><span>No se suma nuevamente como material. Si necesitas recalcularlo con un costo de compra actual, cambia el origen a “Lo proporciona A&E”.</span></>:form.materialSource==='client'?<><b>Material proporcionado por el cliente</b><span>El costo del material es $0. Solo se cobran máquina, diseño, mano de obra, acabado y extras.</span></>:calc.isUnit?<><b>{form.quantity} producto(s) a {money(material.sheetCost)} cada uno</b><span>Costo del producto base: {money(calc.materialCost)}. Configura el costo de compra por pieza en Inventario.</span></>:calc.isArea?<><b>{calc.usedArea.toFixed(2)} cm² de material para este trabajo</b><span>Costo proporcional: {money(calc.materialCost)}. Al crear el pedido se descontarán {calc.inventoryConsumption?.amount.toFixed(2)} cm² del inventario.</span></>:calc.isMeter?<><b>{calc.across} pieza(s) a lo ancho · {calc.usedLength.toFixed(1)} cm lineales utilizados</b><span>Costo del vinil utilizado: {money(calc.materialCost)} · rollo de {material.sheetWidth} cm de ancho a {money(material.sheetCost)} por metro · merma {material.waste||0}%.</span></>:<><b>{calc.perSheet} pieza(s) por placa/hoja · {calc.sheets} necesarias</b><span>Costo proporcional por pieza: {money(calc.materialUnit)} · formato de {material.sheetWidth} × {material.sheetHeight} cm a {money(material.sheetCost)} · merma {material.waste||0}%.{calc.inventoryConsumption?` Al crear el pedido se descontarán ${calc.inventoryConsumption.amount} hoja(s).`:''}</span></>}</div>
     {saved&&<div className="success"><Check size={17}/>Cotización guardada</div>}<div className="actions"><button className="primary" onClick={save}><Save size={18}/>Guardar</button><button onClick={order}><ClipboardList size={18}/>Crear pedido</button><button onClick={()=>window.location.href=`https://wa.me/?text=${message()}`}><MessageCircle size={18}/>WhatsApp</button><button onClick={()=>window.print()}><Printer size={18}/>PDF / Imprimir</button><button onClick={()=>{setForm(initial);setSaved(false)}}><RotateCcw size={18}/>Nueva</button></div>
-  </Card><aside className="resultCard printArea"><img src="/logo-ae.png" className="printLogo" alt="A&E Studio Laser"/><span>Total sugerido</span><strong>{money(calc.total)}</strong><div className="unitPrice"><span>Precio por pieza</span><b>{money(calc.unit)}</b></div><h3>Desglose</h3>{calc.productBase>0&&<Line label={calc.addProductToService?'Producto base':'Precio base / mínimo'} value={calc.productBase}/>}<Line label="Material de personalización" value={calc.materialCost}/><Line label="Tiempo de máquina" value={calc.machineCost}/><Line label="Diseño" value={form.design}/><Line label="Mano de obra" value={form.labor}/><Line label="Armado / acabado" value={form.assembly}/><Line label="Extras" value={form.extras}/><Line label={calc.addProductToService?'Costos de personalización':'Costos conocidos'} value={calc.productionCost} bold/><Line label={calc.addProductToService?'Ganancia de personalización':selectedProduct?'Diferencia sobre costos conocidos':'Ganancia'} value={calc.profitAmount}/><small>{calc.addProductToService?'Producto base + material + personalización · ':selectedProduct?'Precio usado como mínimo · ':''}{typeName} · {form.width} × {form.height} cm</small></aside></div>
+  </Card><aside className="resultCard printArea"><img src="/logo-ae.png" className="printLogo" alt="A&E Studio Laser"/><span>Total sugerido</span><strong>{money(calc.total)}</strong><div className="unitPrice"><span>Precio por pieza</span><b>{money(calc.unit)}</b></div>{form.comments?.trim()&&<div className="resultComments"><b>Comentarios</b><span>{form.comments.trim()}</span></div>}<h3>Desglose</h3>{calc.productBase>0&&<Line label={calc.addProductToService?'Producto base':'Precio base / mínimo'} value={calc.productBase}/>}<Line label="Material de personalización" value={calc.materialCost}/><Line label="Tiempo de máquina" value={calc.machineCost}/><Line label="Diseño" value={form.design}/><Line label="Mano de obra" value={form.labor}/><Line label="Armado / acabado" value={form.assembly}/><Line label="Extras" value={form.extras}/><Line label={calc.addProductToService?'Costos de personalización':'Costos conocidos'} value={calc.productionCost} bold/><Line label={calc.addProductToService?'Ganancia de personalización':selectedProduct?'Diferencia sobre costos conocidos':'Ganancia'} value={calc.profitAmount}/><small>{calc.addProductToService?'Producto base + material + personalización · ':selectedProduct?'Precio usado como mínimo · ':''}{typeName} · {form.width} × {form.height} cm</small></aside></div>
 }
 
 const catalogStatus={order:'Sobre pedido',available:'Disponible',hidden:'Oculto'}
@@ -308,7 +357,7 @@ function Status({value}){return <span className={`status ${value}`}>{labels[valu
 function Orders({orders,setOrders}){
   const [filter,setFilter]=useState('all'),shown=filter==='all'?orders:orders.filter(o=>o.status===filter),update=(id,p)=>setOrders(orders.map(o=>o.id===id?{...o,...p}:o))
   return <Card title="Pedidos" subtitle="Seguimiento desde la cotización hasta la entrega."><div className="filters">{['all','pending','process','ready','delivered'].map(id=><button key={id} className={filter===id?'active':''} onClick={()=>setFilter(id)}>{id==='all'?'Todos':labels[id]}</button>)}</div>
-    {shown.length?<div className="cardsList">{shown.map(o=><article className="orderCard" key={o.id}><div><Status value={o.status}/><h3>{o.project||'Pedido'}</h3><p>{o.client||'Sin cliente'} · {o.quantity} pieza(s)</p></div><b className="orderTotal">{money(o.total)}</b><Field label="Estado"><select value={o.status} onChange={e=>update(o.id,{status:e.target.value})}>{Object.entries(labels).map(([id,l])=><option key={id} value={id}>{l}</option>)}</select></Field><Field label="Entrega"><input type="date" value={o.dueDate||''} onChange={e=>update(o.id,{dueDate:e.target.value})}/></Field><button className="iconButton danger" onClick={()=>confirm('¿Eliminar este pedido?')&&setOrders(orders.filter(x=>x.id!==o.id))}><Trash2 size={17}/></button></article>)}</div>:<Empty text="No hay pedidos en este estado."/>}</Card>
+    {shown.length?<div className="cardsList">{shown.map(o=><article className="orderCard" key={o.id}><div><Status value={o.status}/><h3>{o.project||'Pedido'}</h3><p>{o.client||'Sin cliente'} · {o.quantity} pieza(s)</p>{o.comments?.trim()&&<p className="orderComments">{o.comments}</p>}</div><b className="orderTotal">{money(o.total)}</b><Field label="Estado"><select value={o.status} onChange={e=>update(o.id,{status:e.target.value})}>{Object.entries(labels).map(([id,l])=><option key={id} value={id}>{l}</option>)}</select></Field><Field label="Entrega"><input type="date" value={o.dueDate||''} onChange={e=>update(o.id,{dueDate:e.target.value})}/></Field><button className="iconButton danger" onClick={()=>confirm('¿Eliminar este pedido?')&&setOrders(orders.filter(x=>x.id!==o.id))}><Trash2 size={17}/></button></article>)}</div>:<Empty text="No hay pedidos en este estado."/>}</Card>
 }
 
 function Inventory({items,setItems}){
