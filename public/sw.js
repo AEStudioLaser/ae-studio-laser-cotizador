@@ -1,4 +1,4 @@
-const CACHE = 'ae-studio-maker-design-v14'
+const CACHE = 'ae-studio-maker-v15'
 const CORE = ['/', '/manifest.webmanifest', '/logo-ae.png', '/icons/icon-192.png', '/icons/icon-512.png']
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(CORE)))
@@ -15,4 +15,16 @@ self.addEventListener('fetch', event => {
     caches.open(CACHE).then(cache => cache.put(event.request, copy))
     return response
   }).catch(() => caches.match(event.request).then(hit => hit || caches.match('/'))))
+})
+self.addEventListener('notificationclick', event => {
+  event.notification.close()
+  const target = event.notification.data?.url || '/?open=orders'
+  event.waitUntil(self.clients.matchAll({type:'window',includeUncontrolled:true}).then(windows => {
+    const openWindow = windows[0]
+    if (openWindow) {
+      openWindow.navigate(target)
+      return openWindow.focus()
+    }
+    return self.clients.openWindow(target)
+  }))
 })
