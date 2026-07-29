@@ -30,3 +30,28 @@ export function calculateFilamentBreakdown({primaryMaterial, primaryWeight, extr
     inventoryUsage,
   }
 }
+
+export function resolvePrintPrice({
+  productionCost,
+  automaticTotal,
+  quantity = 1,
+  priceMode = 'auto',
+  manualTotal = '',
+}) {
+  const cost = Math.max(0, amount(productionCost))
+  const automatic = Math.max(0, amount(automaticTotal))
+  const qty = Math.max(1, amount(quantity))
+  const isManual = priceMode === 'manual' && manualTotal !== ''
+  const total = isManual ? Math.max(0, amount(manualTotal)) : automatic
+  const profitAmount = total - cost
+
+  return {
+    automaticTotal: automatic,
+    isManual,
+    total,
+    unit: total / qty,
+    profitAmount,
+    marginPercent: total > 0 ? profitAmount / total * 100 : 0,
+    belowCost: total < cost,
+  }
+}
