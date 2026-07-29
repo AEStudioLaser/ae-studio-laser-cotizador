@@ -18,7 +18,7 @@ import {
   calculateSheetMaterialCost,
   remainingAreaLength,
 } from '../src/pricing/serviceQuote.js'
-import {calculateFilamentBreakdown} from '../src/pricing/print3d.js'
+import {calculateFilamentBreakdown, resolvePrintPrice} from '../src/pricing/print3d.js'
 
 test('las medidas predeterminadas del llavero son válidas', () => {
   assert.deepEqual(validateKeychain(DEFAULT_KEYCHAIN), {})
@@ -143,4 +143,34 @@ test('los gramos del mismo rollo se acumulan antes de descontar inventario', () 
   })
 
   assert.deepEqual(filament.inventoryUsage,{'same-stock':30})
+})
+
+test('el precio manual permite una promoción y conserva la rentabilidad real', () => {
+  const price = resolvePrintPrice({
+    productionCost:60,
+    automaticTotal:120,
+    quantity:3,
+    priceMode:'manual',
+    manualTotal:100,
+  })
+
+  assert.equal(price.total,100)
+  assert.equal(price.unit,100/3)
+  assert.equal(price.profitAmount,40)
+  assert.equal(price.marginPercent,40)
+  assert.equal(price.belowCost,false)
+})
+
+test('el precio manual alerta cuando queda debajo del costo', () => {
+  const price = resolvePrintPrice({
+    productionCost:110,
+    automaticTotal:170,
+    quantity:3,
+    priceMode:'manual',
+    manualTotal:100,
+  })
+
+  assert.equal(price.total,100)
+  assert.equal(price.profitAmount,-10)
+  assert.equal(price.belowCost,true)
 })
