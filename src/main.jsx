@@ -20,7 +20,11 @@ import {isPaymentOverdue, paymentSummary} from './orders/payments'
 const money=v=>new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(Number(v)||0)
 const num=v=>Number(v)||0
 const uid=()=>crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`
-const today=()=>new Date().toISOString().slice(0,10)
+const today=()=>{
+  const date=new Date()
+  date.setMinutes(date.getMinutes()-date.getTimezoneOffset())
+  return date.toISOString().slice(0,10)
+}
 const defaults={businessName:'A&E Studio Laser',phone:'',printer:'Bambu Lab A1',electricityPrice:1.2,printerWatts:90,wearPerHour:5,failureRate:10,laserRate:80,cricutRate:40,defaultProfit:50,roundTo:5,quoteValidity:15,
   materials:[{id:'pla',name:'PLA',priceKg:298},{id:'petg',name:'PETG',priceKg:340}],
   laserMaterials:[{id:'mdf3',name:'MDF 3 mm',pricingMode:'sheet',sheetWidth:120,sheetHeight:240,sheetCost:160,waste:0},{id:'acrylic3',name:'Acrílico 3 mm',pricingMode:'sheet',sheetWidth:60,sheetHeight:40,sheetCost:240,waste:10},{id:'tumbler',name:'Termo para grabado',pricingMode:'unit',sheetWidth:0,sheetHeight:0,sheetCost:0,waste:0},{id:'steelplate',name:'Placa inoxidable',pricingMode:'unit',sheetWidth:0,sheetHeight:0,sheetCost:0,waste:0}],
