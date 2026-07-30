@@ -14,6 +14,8 @@ import Design3DPage from './design3d/Design3DPage'
 import CreativeProjectsPage from './creative/CreativeProjectsPage'
 import {calculateCricutConsumption, calculateServicePrice, calculateSheetMaterialCost, remainingAreaLength, resolveServiceFinalPrice} from './pricing/serviceQuote'
 import {calculateFilamentBreakdown, resolvePrintPrice} from './pricing/print3d'
+import OrderPayments from './orders/OrderPayments'
+import {isPaymentOverdue, paymentSummary} from './orders/payments'
 
 const money=v=>new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(Number(v)||0)
 const num=v=>Number(v)||0
@@ -236,7 +238,7 @@ function Quote({settings,inventory,setInventory,catalog,quotes,setQuotes,orders,
     if(missing){const item=inventory.find(i=>i.id===missing[0]);return alert(`No hay suficiente ${item?.name||'filamento'}. Disponible: ${num(item?.stock)} g.`)}
     const q=save()
     if(Object.keys(calc.inventoryUsage).length)setInventory(inventory.map(item=>calc.inventoryUsage[item.id]?{...item,stock:Math.max(0,num(item.stock)-calc.inventoryUsage[item.id]),updatedAt:new Date().toISOString()}:item))
-    const createdOrder={...q,id:uid(),quoteId:q.id,status:'pending',createdAt:new Date().toISOString(),dueDate:''}
+    const createdOrder={...q,id:uid(),quoteId:q.id,status:'pending',createdAt:new Date().toISOString(),dueDate:'',paymentDueDate:'',payments:[]}
     setOrders([createdOrder,...orders]);onOrderCreated?.(createdOrder)
     alert(`Cotización guardada y pedido creado.${Object.keys(calc.inventoryUsage).length?' Inventario de filamento actualizado.':''}`)
   }
@@ -311,7 +313,7 @@ function ServiceQuote({service,inventory,setInventory,catalog:productCatalog,set
       }
       return item
     }))
-    const createdOrder={...q,id:uid(),quoteId:q.id,status:'pending',createdAt:new Date().toISOString(),dueDate:''}
+    const createdOrder={...q,id:uid(),quoteId:q.id,status:'pending',createdAt:new Date().toISOString(),dueDate:'',paymentDueDate:'',payments:[]}
     setOrders([createdOrder,...orders]);onOrderCreated?.(createdOrder)
     alert(`Cotización guardada y pedido creado.${materialItem||productItem?' Inventario actualizado.':''}`)
   }
@@ -357,9 +359,26 @@ function Catalog({products,setProducts}){
 const labels={pending:'Pendiente',process:'En proceso',ready:'Listo',delivered:'Entregado',cancelled:'Cancelado'}
 function Status({value}){return <span className={`status ${value}`}>{labels[value]||value}</span>}
 function Orders({orders,setOrders}){
-  const [filter,setFilter]=useState('all'),shown=filter==='all'?orders:orders.filter(o=>o.status===filter),update=(id,p)=>setOrders(orders.map(o=>o.id===id?{...o,...p}:o))
-  return <Card title="Pedidos" subtitle="Seguimiento desde la cotización hasta la entrega."><div className="filters">{['all','pending','process','ready','delivered'].map(id=><button key={id} className={filter===id?'active':''} onClick={()=>setFilter(id)}>{id==='all'?'Todos':labels[id]}</button>)}</div>
-    {shown.length?<div className="cardsList">{shown.map(o=><article className="orderCard" key={o.id}><div><Status value={o.status}/><h3>{o.project||'Pedido'}</h3><p>{o.client||'Sin cliente'} · {o.quantity} pieza(s)</p>{o.comments?.trim()&&<p className="orderComments">{o.comments}</p>}</div><b className="orderTotal">{money(o.total)}</b><Field label="Estado"><select value={o.status} onChange={e=>update(o.id,{status:e.target.value})}>{Object.entries(labels).map(([id,l])=><option key={id} value={id}>{l}</option>)}</select></Field><Field label="Entrega"><input type="date" value={o.dueDate||''} onChange={e=>update(o.id,{dueDate:e.target.value})}/></Field><button className="iconButton danger" onClick={()=>confirm('¿Eliminar este pedido?')&&setOrders(orders.filter(x=>x.id!==o.id))}><Trash2 size={17}/></button></article>)}</div>:<Empty text="No hay pedidos en este estado."/>}</Card>
+  const [filter,setFilter]=useState('all'),[paymentFilter,setPaymentFilter]=useState('all')
+  const update=(id,patch)=>setOrders(current=>current.map(order=>order.id===id?{...order,...patch}:order))
+  const replace=updated=>setOrders(current=>current.map(order=>order.id===updated.id?updated:order))
+  const activeOrders=orders.filter(order=>order.status!=='cancelled')
+  const collected=activeOrders.reduce((sum,order)=>sum+paymentSummary(order).paid,0)
+  const receivable=activeOrders.reduce((sum,order)=>sum+paymentSummary(order).balance,0)
+  const overdue=activeOrders.filter(order=>isPaymentOverdue(order)).length
+  const shown=orders.filter(order=>{
+    const productionMatches=filter==='all'||order.status===filter
+    const paymentMatches=paymentFilter==='all'||paymentSummary(order).status===paymentFilter
+    return productionMatches&&paymentMatches
+  })
+  const changeStatus=(order,status)=>{
+    const balance=paymentSummary(order).balance
+    if(status==='delivered'&&balance>0&&!confirm(`Este pedido todavía tiene un saldo de ${money(balance)}. ¿Marcarlo como entregado de todos modos?`))return
+    update(order.id,{status})
+  }
+  return <><div className="stats compact paymentStats"><Stat label="Pedidos activos" value={activeOrders.length} tone="blue"/><Stat label="Cobrado" value={money(collected)} tone="green"/><Stat label="Por cobrar" value={money(receivable)} tone="orange"/><Stat label="Pagos vencidos" value={overdue} tone="purple"/></div>
+    <Card title="Pedidos y pagos" subtitle="Controla por separado la producción, los anticipos y el saldo de cada cliente."><div className="orderFilters"><div className="filters">{['all','pending','process','ready','delivered','cancelled'].map(id=><button key={id} className={filter===id?'active':''} onClick={()=>setFilter(id)}>{id==='all'?'Todos':labels[id]}</button>)}</div><label className="paymentFilter"><span>Estado de pago</span><select value={paymentFilter} onChange={event=>setPaymentFilter(event.target.value)}><option value="all">Todos</option><option value="unpaid">Sin pago</option><option value="partial">Pago parcial</option><option value="paid">Pagado</option></select></label></div>
+    {shown.length?<div className="cardsList">{shown.map(order=><article className={`orderCard ${isPaymentOverdue(order)?'paymentOverdue':''}`} key={order.id}><div><div className="orderBadges"><Status value={order.status}/>{isPaymentOverdue(order)&&<span className="overdueBadge">Pago vencido</span>}</div><h3>{order.project||'Pedido'}</h3><p>{order.client||'Sin cliente'} · {order.quantity} pieza(s)</p>{order.comments?.trim()&&<p className="orderComments">{order.comments}</p>}</div><b className="orderTotal">{money(order.total)}</b><Field label="Estado del pedido"><select value={order.status} onChange={event=>changeStatus(order,event.target.value)}>{Object.entries(labels).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></Field><Field label="Fecha de entrega"><input type="date" value={order.dueDate||''} onChange={event=>update(order.id,{dueDate:event.target.value})}/></Field><button className="iconButton danger" aria-label="Eliminar pedido" onClick={()=>confirm('¿Eliminar este pedido y su historial de pagos?')&&setOrders(current=>current.filter(item=>item.id!==order.id))}><Trash2 size={17}/></button><OrderPayments order={order} onChange={replace}/></article>)}</div>:<Empty text="No hay pedidos con estos filtros."/>}</Card></>
 }
 
 function Inventory({items,setItems}){
