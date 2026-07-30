@@ -20,6 +20,7 @@ import {
   resolveServiceFinalPrice,
 } from '../src/pricing/serviceQuote.js'
 import {calculateFilamentBreakdown, resolvePrintPrice} from '../src/pricing/print3d.js'
+import {createPayment, isPaymentOverdue, paymentSummary} from '../src/orders/payments.js'
 
 test('las medidas predeterminadas del llavero son válidas', () => {
   assert.deepEqual(validateKeychain(DEFAULT_KEYCHAIN), {})
@@ -207,4 +208,66 @@ test('Cricut alerta si la promoción manual no cubre producto y personalización
   assert.equal(price.total,100)
   assert.equal(price.profitAmount,-30)
   assert.equal(price.belowCost,true)
+})
+
+test('un pedido anterior sin pagos conserva todo su saldo pendiente', () => {
+  const summary = paymentSummary({total:1500})
+
+  assert.deepEqual(summary,{
+    total:1500,
+    paid:0,
+    balance:1500,
+    status:'unpaid',
+    progress:0,
+  })
+})
+
+test('los anticipos y abonos calculan el saldo y el estado parcial', () => {
+  const summary = paymentSummary({
+    total:1500,
+    payments:[
+      {amount:500},
+      {amount:400},
+    ],
+  })
+
+  assert.equal(summary.paid,900)
+  assert.equal(summary.balance,600)
+  assert.equal(summary.status,'partial')
+  assert.equal(summary.progress,60)
+})
+
+test('al liquidar un pedido cambia automáticamente a pagado', () => {
+  const summary = paymentSummary({
+    total:1500,
+    payments:[
+      {amount:500},
+      {amount:1000},
+    ],
+  })
+
+  assert.equal(summary.balance,0)
+  assert.equal(summary.status,'paid')
+  assert.equal(summary.progress,100)
+})
+
+test('detecta una fecha de liquidación vencida solo cuando existe saldo', () => {
+  const reference = new Date('2026-07-29T12:00:00')
+  assert.equal(isPaymentOverdue({total:100,paymentDueDate:'2026-07-28',payments:[]},reference),true)
+  assert.equal(isPaymentOverdue({total:100,paymentDueDate:'2026-07-28',payments:[{amount:100}]},reference),false)
+})
+
+test('normaliza un pago antes de guardarlo en el historial', () => {
+  const payment = createPayment({
+    id:'payment-1',
+    amount:'250.50',
+    date:'2026-07-29',
+    method:'cash',
+    note:'  Segundo abono  ',
+    createdAt:'2026-07-29T12:00:00.000Z',
+  })
+
+  assert.equal(payment.amount,250.5)
+  assert.equal(payment.note,'Segundo abono')
+  assert.equal(payment.method,'cash')
 })
