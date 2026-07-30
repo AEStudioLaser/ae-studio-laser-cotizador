@@ -17,6 +17,7 @@ import {
   calculateServicePrice,
   calculateSheetMaterialCost,
   remainingAreaLength,
+  resolveServiceFinalPrice,
 } from '../src/pricing/serviceQuote.js'
 import {calculateFilamentBreakdown, resolvePrintPrice} from '../src/pricing/print3d.js'
 
@@ -172,5 +173,38 @@ test('el precio manual alerta cuando queda debajo del costo', () => {
 
   assert.equal(price.total,100)
   assert.equal(price.profitAmount,-10)
+  assert.equal(price.belowCost,true)
+})
+
+test('láser permite definir un total manual y conserva la sugerencia automática', () => {
+  const price = resolveServiceFinalPrice({
+    productionCost:80,
+    automaticTotal:150,
+    automaticProfitAmount:70,
+    quantity:2,
+    priceMode:'manual',
+    manualTotal:120,
+  })
+
+  assert.equal(price.automaticTotal,150)
+  assert.equal(price.total,120)
+  assert.equal(price.unit,60)
+  assert.equal(price.profitAmount,40)
+  assert.equal(price.marginPercent,40/120*100)
+  assert.equal(price.belowCost,false)
+})
+
+test('Cricut alerta si la promoción manual no cubre producto y personalización', () => {
+  const price = resolveServiceFinalPrice({
+    productionCost:130,
+    automaticTotal:210,
+    automaticProfitAmount:80,
+    quantity:3,
+    priceMode:'manual',
+    manualTotal:100,
+  })
+
+  assert.equal(price.total,100)
+  assert.equal(price.profitAmount,-30)
   assert.equal(price.belowCost,true)
 })
