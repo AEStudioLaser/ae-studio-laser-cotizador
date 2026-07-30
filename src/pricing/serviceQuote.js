@@ -26,6 +26,32 @@ export function calculateServicePrice({
   }
 }
 
+export function resolveServiceFinalPrice({
+  productionCost,
+  automaticTotal,
+  automaticProfitAmount,
+  quantity = 1,
+  priceMode = 'auto',
+  manualTotal = '',
+}) {
+  const cost = Math.max(0, amount(productionCost))
+  const automatic = Math.max(0, amount(automaticTotal))
+  const qty = Math.max(1, amount(quantity))
+  const isManual = priceMode === 'manual' && manualTotal !== ''
+  const total = isManual ? Math.max(0, amount(manualTotal)) : automatic
+  const profitAmount = isManual ? total - cost : amount(automaticProfitAmount)
+
+  return {
+    automaticTotal: automatic,
+    isManual,
+    total,
+    unit: total / qty,
+    profitAmount,
+    marginPercent: total > 0 ? profitAmount / total * 100 : 0,
+    belowCost: isManual && total < cost,
+  }
+}
+
 export function calculateCricutConsumption({
   width,
   height,
