@@ -51,6 +51,17 @@ Todos los cambios relevantes de A&E Studio Maker se documentan aquí.
 - El inventario de filamento puede registrarse y mostrarse en gramos.
 - Al crear el pedido se descuentan los gramos de cada rollo seleccionado; guardar una cotización no altera existencias.
 
+### Anticipos y abonos
+
+- Cada pedido conserva su total y un historial independiente de pagos.
+- El primer pago se registra como anticipo y los siguientes como abonos.
+- Cada movimiento incluye importe, fecha, método y una nota opcional.
+- El saldo y el estado `Sin pago`, `Pago parcial` o `Pagado` se calculan automáticamente.
+- Se puede indicar la fecha prometida de liquidación y la app marca los pagos vencidos.
+- La app advierte antes de entregar un pedido con saldo pendiente.
+- Los pagos forman parte del pedido existente y se sincronizan mediante el estado en la nube actual, sin cambios de base de datos.
+- Los pedidos anteriores siguen funcionando y se consideran sin pago hasta registrar su primer movimiento.
+
 ### Limitaciones
 
 - La instalación local de dependencias quedó bloqueada por falta de acceso al registro de npm en el entorno de trabajo.
