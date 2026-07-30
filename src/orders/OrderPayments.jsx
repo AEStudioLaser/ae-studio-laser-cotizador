@@ -5,7 +5,11 @@ import {createPayment, PAYMENT_METHODS, paymentMethodLabel, paymentSummary} from
 const money = value =>
   new Intl.NumberFormat('es-MX', {style: 'currency', currency: 'MXN'}).format(Number(value) || 0)
 
-const today = () => new Date().toISOString().slice(0, 10)
+const today = () => {
+  const date = new Date()
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset())
+  return date.toISOString().slice(0, 10)
+}
 const uid = () => crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`
 
 const statusLabels = {
