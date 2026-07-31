@@ -1,5 +1,21 @@
 # Changelog
 
+## 18.0.0 — Biblioteca de parámetros
+
+- Los parámetros se retiraron de los tres cotizadores para conservar formularios sencillos.
+- Se agregó la opción independiente **Parámetros** al menú principal.
+- La nueva consulta separa los perfiles de Bambu Lab A1, Sculpfun 20 W y Cricut.
+- Cada perfil muestra sus valores, unidades, recomendaciones y advertencias de seguridad.
+- Consultar un perfil no modifica costos, inventario, cotizaciones ni pedidos.
+
+## 17.0.0 — Parámetros sugeridos de producción
+
+- Se añadieron perfiles editables para Bambu Lab A1, láser Sculpfun de 20 W y Cricut Maker.
+- Los parámetros quedan ocultos en una sección opcional para mantener sencillos los cotizadores.
+- Los perfiles se guardan dentro de la cotización y del pedido, pero no alteran automáticamente el precio.
+- Los pedidos muestran el nombre del perfil de producción seleccionado.
+- Se añadieron pruebas automáticas para los perfiles y su selección por tipo de trabajo.
+
 Todos los cambios relevantes de A&E Studio Maker se documentan aquí.
 
 ## En desarrollo — `feature/design-modules`
