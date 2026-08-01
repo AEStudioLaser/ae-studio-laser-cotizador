@@ -10,6 +10,17 @@ export const PAYMENT_METHODS = [
   ['other', 'Otro'],
 ]
 
+export const PAYMENT_PLANS = [
+  ['deposit', 'Anticipo y saldo al entregar'],
+  ['on_delivery', 'Pago completo al entregar'],
+]
+
+export const normalizePaymentPlan = value =>
+  value === 'on_delivery' ? 'on_delivery' : 'deposit'
+
+export const paymentPlanLabel = value =>
+  PAYMENT_PLANS.find(([id]) => id === normalizePaymentPlan(value))?.[1] || PAYMENT_PLANS[0][1]
+
 export const paymentMethodLabel = method =>
   PAYMENT_METHODS.find(([id]) => id === method)?.[1] || 'Otro'
 
@@ -27,6 +38,10 @@ export function paymentSummary(order) {
     status,
     progress: total > 0 ? Math.min(100, (paid / total) * 100) : 100,
   }
+}
+
+export function isOrderFinalized(order) {
+  return order?.status === 'delivered' && paymentSummary(order).status === 'paid'
 }
 
 export function isPaymentOverdue(order, referenceDate = new Date()) {
