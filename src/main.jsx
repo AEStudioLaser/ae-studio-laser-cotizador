@@ -13,6 +13,7 @@ import {cloud, isCloudConfigured} from './cloud'
 import Design3DPage from './design3d/Design3DPage'
 import CreativeProjectsPage from './creative/CreativeProjectsPage'
 import FinancePage from './FinancePage'
+import {applyInventoryPurchase, createInventoryPurchaseTransaction, inventoryQuantityLabel} from './finance'
 import {calculateCricutConsumption, calculateServicePrice, calculateSheetMaterialCost, remainingAreaLength, resolveServiceFinalPrice} from './pricing/serviceQuote'
 import {calculateFilamentBreakdown, resolvePrintPrice} from './pricing/print3d'
 import OrderPayments from './orders/OrderPayments'
@@ -32,7 +33,7 @@ const defaults={businessName:'A&E Studio Laser',phone:'',printer:'Bambu Lab A1',
   laserMaterials:[{id:'mdf3',name:'MDF 3 mm',pricingMode:'sheet',sheetWidth:120,sheetHeight:240,sheetCost:160,waste:0},{id:'acrylic3',name:'Acrílico 3 mm',pricingMode:'sheet',sheetWidth:60,sheetHeight:40,sheetCost:240,waste:10},{id:'tumbler',name:'Termo para grabado',pricingMode:'unit',sheetWidth:0,sheetHeight:0,sheetCost:0,waste:0},{id:'steelplate',name:'Placa inoxidable',pricingMode:'unit',sheetWidth:0,sheetHeight:0,sheetCost:0,waste:0}],
   cricutMaterials:[{id:'vinyl',name:'Vinil adhesivo',pricingMode:'meter',sheetWidth:60,sheetHeight:100,sheetCost:65,waste:5},{id:'sticker',name:'Papel sticker A4',pricingMode:'sheet',sheetWidth:21,sheetHeight:29.7,sheetCost:12,waste:8},{id:'cardstock',name:'Cartulina 12 × 12',pricingMode:'sheet',sheetWidth:30.5,sheetHeight:30.5,sheetCost:15,waste:8}]}
 const freshQuote=s=>({client:'',project:'',comments:'',catalogProduct:'',material:s.materials[0]?.id||'pla',quantity:1,weight:50,hours:4,minutes:0,extras:0,labor:0,failure:num(s.failureRate??10),profit:num(s.defaultProfit)||50,multicolor:false,extraColors:[],priceMode:'auto',manualTotal:''})
-const freshStock={type:'product',name:'',category:'laser',supplier:'',purchaseQty:1,purchaseTotal:0,stock:1,minStock:0,salePrice:0,purchaseDate:today(),trackingMode:'units',materialWidth:60,materialLength:100,areaRemaining:0}
+const freshStock={type:'product',name:'',category:'laser',supplier:'',purchaseQty:1,purchaseTotal:0,stock:1,minStock:0,salePrice:0,purchaseDate:today(),purchaseMethod:'cash',trackingMode:'units',materialWidth:60,materialLength:100,areaRemaining:0}
 const freshClient={name:'',phone:'',email:'',notes:''}
 const unitCost=i=>num(i.purchaseTotal)/Math.max(1,num(i.purchaseQty))
 const categoryName=id=>({laser:'Láser','3d':'Impresión 3D',cricut:'Cricut'}[id]||'Sin categoría')
@@ -186,8 +187,8 @@ function App(){
         {page==='creative'&&<CreativeProjectsPage projects={creativeProjects} setProjects={setCreativeProjects} clients={clients} inventory={inventory} orders={orders} products={catalog}/>}
         {page==='catalog'&&<Catalog products={catalog} setProducts={setCatalog}/>}
         {page==='orders'&&<Orders orders={orders} setOrders={setOrders}/>}
-        {page==='finance'&&<FinancePage orders={orders} inventory={inventory} setInventory={setInventory} transactions={financeTransactions} setTransactions={setFinanceTransactions}/>}
-        {page==='inventory'&&<Inventory items={inventory} setItems={setInventory}/>}
+        {page==='finance'&&<FinancePage orders={orders} inventory={inventory} transactions={financeTransactions} setTransactions={setFinanceTransactions}/>}
+        {page==='inventory'&&<Inventory items={inventory} setItems={setInventory} transactions={financeTransactions} setTransactions={setFinanceTransactions}/>}
         {page==='clients'&&<Clients clients={clients} setClients={setClients}/>}
         {page==='quotes'&&<Quotes quotes={quotes} setQuotes={setQuotes}/>}
         {page==='models'&&<Models models={models} setModels={setModels} settings={settings}/>}
@@ -399,23 +400,61 @@ function Orders({orders,setOrders}){
     {shown.length?<div className="cardsList">{shown.map(order=>{const locked=isOrderFinalized(order);return <article className={`orderCard ${isPaymentOverdue(order)?'paymentOverdue':''} ${locked?'orderLocked':''}`} key={order.id}><div><div className="orderBadges"><Status value={order.status}/>{locked&&<span className="lockedBadge">Finalizado</span>}{isPaymentOverdue(order)&&<span className="overdueBadge">Pago vencido</span>}{order.status==='delivered'&&paymentSummary(order).balance>0&&<span className="balanceDueBadge">Entregado · pago pendiente</span>}</div><h3>{order.project||'Pedido'}</h3><p>{order.client||'Sin cliente'} · {order.quantity} pieza(s)</p>{order.comments?.trim()&&<p className="orderComments">{order.comments}</p>}{order.productionParams?.profileName&&<p className="orderParameters">Parámetros: {order.productionParams.profileName}</p>}{order.inventoryDeductions?.length>0&&<p className="inventoryDeduction">Inventario descontado: {order.inventoryDeductions.map(item=>`${item.name} · ${num(item.amount).toFixed(item.unit==='g'?1:2)} ${item.unit}`).join(' | ')}</p>}</div><b className="orderTotal">{money(order.total)}</b><Field label="Estado del pedido"><select disabled={locked} value={order.status} onChange={event=>changeStatus(order,event.target.value)}>{Object.entries(labels).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></Field><Field label="Fecha de entrega"><input disabled={locked} type="date" value={order.dueDate||''} onChange={event=>update(order.id,{dueDate:event.target.value})}/></Field>{!locked&&<button className="iconButton danger" aria-label="Eliminar pedido" onClick={()=>confirm('¿Eliminar este pedido y su historial de pagos?')&&setOrders(current=>current.filter(item=>item.id!==order.id))}><Trash2 size={17}/></button>}<OrderPayments order={order} onChange={replace} onDeliverAndPay={deliverAndPay} locked={locked}/></article>})}</div>:<Empty text="No hay pedidos con estos filtros."/>}</Card></>
 }
 
-function Inventory({items,setItems}){
-  const [form,setForm]=useState(freshStock),[editing,setEditing]=useState(null),[search,setSearch]=useState(''),shown=items.filter(i=>`${i.name} ${i.category} ${i.supplier}`.toLowerCase().includes(search.toLowerCase()))
+function Inventory({items,setItems,transactions,setTransactions}){
+  const [form,setForm]=useState(freshStock)
+  const [editing,setEditing]=useState(null)
+  const [search,setSearch]=useState('')
+  const [purchase,setPurchase]=useState(null)
+  const shown=items.filter(i=>`${i.name} ${i.category} ${i.supplier}`.toLowerCase().includes(search.toLowerCase()))
   const cricutRaw=form.type==='raw'&&form.category==='cricut',printRaw=form.type==='raw'&&form.category==='3d',tracksArea=cricutRaw&&form.trackingMode==='area',tracksSheets=cricutRaw&&form.trackingMode==='sheets'
   const purchasedArea=num(form.materialWidth)*num(form.materialLength)*Math.max(1,num(form.purchaseQty)),displayArea=num(form.areaRemaining)>0?num(form.areaRemaining):purchasedArea
+  const purchasedItem=items.find(item=>item.id===purchase?.inventoryId)
+  const paymentMethods=[['cash','Efectivo'],['transfer','Transferencia'],['card','Tarjeta'],['other','Otro']]
+
   const save=()=>{
     if(!form.name.trim())return alert('Escribe el nombre.')
     let item={...form,id:editing||uid(),updatedAt:new Date().toISOString()}
     if(tracksArea)item={...item,stock:Math.max(1,num(form.purchaseQty)),areaRemaining:displayArea}
     if(!editing&&(tracksSheets||printRaw)&&num(form.stock)===1)item={...item,stock:num(form.purchaseQty)}
     setItems(editing?items.map(i=>i.id===editing?item:i):[item,...items])
+    if(!editing&&num(item.purchaseQty)>0&&num(item.purchaseTotal)>0){
+      const transaction=createInventoryPurchaseTransaction(item,{id:uid()})
+      setTransactions([transaction,...transactions])
+    }
     setForm(freshStock);setEditing(null)
   }
+
+  const startPurchase=item=>{
+    setPurchase({inventoryId:item.id,quantity:1,amount:'',date:today(),supplier:item.supplier||'',method:item.purchaseMethod||'cash',notes:''})
+    scrollTo({top:0,behavior:'smooth'})
+  }
+
+  const savePurchase=()=>{
+    if(!purchasedItem)return setPurchase(null)
+    if(num(purchase.quantity)<=0)return alert('Escribe una cantidad comprada mayor a cero.')
+    if(num(purchase.amount)<=0)return alert('Escribe el costo total de la compra.')
+    const transaction=createInventoryPurchaseTransaction(purchasedItem,{...purchase,id:uid(),createdAt:new Date().toISOString()})
+    setItems(applyInventoryPurchase(items,transaction))
+    setTransactions([transaction,...transactions])
+    setPurchase(null)
+  }
+
   const available=i=>i.trackingMode==='area'?num(i.areaRemaining):num(i.stock)
   const inventoryValue=i=>i.trackingMode==='area'?unitCost(i)*(num(i.areaRemaining)/Math.max(1,num(i.materialWidth)*num(i.materialLength))):unitCost(i)*num(i.stock)
   const investment=items.reduce((s,i)=>s+inventoryValue(i),0),potential=items.reduce((s,i)=>s+num(i.salePrice)*num(i.stock),0)
   return <><div className="stats compact"><Stat label="Artículos" value={items.length} tone="blue"/><Stat label="Dinero invertido" value={money(investment)} tone="purple"/><Stat label="Venta potencial" value={money(potential)} tone="green"/><Stat label="Stock bajo" value={items.filter(i=>available(i)<=num(i.minStock)).length} tone="orange"/></div>
-    <Card title={editing?'Editar artículo':'Agregar al inventario'} subtitle="Registra productos, vinil por superficie o papel y stickers por hojas.">
+    {purchase&&purchasedItem&&<Card title={`Reabastecer ${purchasedItem.name}`} subtitle="La existencia y Finanzas se actualizarán juntas; no tendrás que capturar la compra dos veces.">
+      <div className="formGrid">
+        <Field label={`Cantidad comprada (${inventoryQuantityLabel(purchasedItem)})`}><input type="number" min=".01" step={purchasedItem.trackingMode==='units'||purchasedItem.trackingMode==='sheets'?'1':'.01'} value={purchase.quantity} onChange={e=>setPurchase({...purchase,quantity:e.target.value})}/></Field>
+        <Field label="Costo total de compra ($)"><input type="number" min="0" step=".01" value={purchase.amount} onChange={e=>setPurchase({...purchase,amount:e.target.value})} placeholder="0.00"/></Field>
+        <Field label="Proveedor"><input value={purchase.supplier} onChange={e=>setPurchase({...purchase,supplier:e.target.value})} placeholder="Opcional"/></Field>
+        <Field label="Fecha de compra"><input type="date" value={purchase.date} onChange={e=>setPurchase({...purchase,date:e.target.value})}/></Field>
+        <Field label="Forma de pago"><select value={purchase.method} onChange={e=>setPurchase({...purchase,method:e.target.value})}>{paymentMethods.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></Field>
+        <Field label="Notas"><input value={purchase.notes} onChange={e=>setPurchase({...purchase,notes:e.target.value})} placeholder="Opcional"/></Field>
+      </div>
+      <div className="actions"><button className="primary" onClick={savePurchase}><Save size={18}/>Guardar compra y existencia</button><button onClick={()=>setPurchase(null)}>Cancelar</button></div>
+    </Card>}
+    <Card title={editing?'Editar artículo':'Agregar al inventario'} subtitle={editing?'Corrige los datos del artículo. Para una compra nueva usa Reabastecer.':'Registra el artículo y su compra inicial una sola vez; el gasto aparecerá en Finanzas automáticamente.'}>
       <div className="formGrid">
         <Field label="Tipo"><select value={form.type} onChange={e=>{const type=e.target.value,trackingMode=type==='raw'&&form.category==='cricut'?'area':type==='raw'&&form.category==='3d'?'grams':'units';setForm({...form,type,trackingMode})}}><option value="product">Producto para venta</option><option value="raw">Materia prima</option></select></Field>
         <Field label="Nombre"><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder={cricutRaw?'Ej. Vinil rojo textil':'Ej. Termo 20 oz'}/></Field>
@@ -428,11 +467,12 @@ function Inventory({items,setItems}){
         {tracksArea?<><Field label="Superficie disponible actual (cm²)"><input type="number" min="0" step=".01" value={form.areaRemaining} onChange={e=>setForm({...form,areaRemaining:e.target.value})} placeholder={String(purchasedArea)}/></Field><Field label="Alerta mínima (cm²)"><input type="number" min="0" step=".01" value={form.minStock} onChange={e=>setForm({...form,minStock:e.target.value})}/></Field></>:<><Field label={tracksSheets?'Hojas en existencia':printRaw?'Filamento disponible (g)':'Existencia actual'}><input type="number" min="0" step={printRaw?'.1':'1'} value={form.stock} onChange={e=>setForm({...form,stock:e.target.value})}/></Field><Field label={tracksSheets?'Alerta mínima de hojas':printRaw?'Alerta mínima (g)':'Existencia mínima'}><input type="number" min="0" step={printRaw?'.1':'1'} value={form.minStock} onChange={e=>setForm({...form,minStock:e.target.value})}/></Field></>}
         {form.type==='product'&&<Field label="Precio de venta por pieza ($)"><input type="number" min="0" step=".01" value={form.salePrice} onChange={e=>setForm({...form,salePrice:e.target.value})}/></Field>}
         <Field label="Fecha de compra"><input type="date" value={form.purchaseDate} onChange={e=>setForm({...form,purchaseDate:e.target.value})}/></Field>
+        <Field label="Forma de pago"><select value={form.purchaseMethod||'cash'} onChange={e=>setForm({...form,purchaseMethod:e.target.value})}>{paymentMethods.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></Field>
       </div>
       <div className="calculated">{tracksArea?<><span>Superficie disponible <b>{displayArea.toFixed(2)} cm²</b></span><span>Equivale a <b>{remainingAreaLength(displayArea,form.materialWidth).toFixed(2)} cm lineales</b></span><span>Costo por cm² <b>{money(unitCost(form)/Math.max(1,num(form.materialWidth)*num(form.materialLength)))}</b></span></>:tracksSheets?<span>Costo por hoja <b>{money(unitCost(form))}</b></span>:printRaw?<><span>Costo por gramo <b>{money(unitCost(form))}</b></span><span>Costo por kg <b>{money(unitCost(form)*1000)}</b></span></>:<><span>Costo unitario <b>{money(unitCost(form))}</b></span>{form.type==='product'&&<span>Ganancia por unidad <b>{money(num(form.salePrice)-unitCost(form))}</b></span>}</>}</div>
-      <div className="actions"><button className="primary" onClick={save}><Save size={18}/>{editing?'Guardar cambios':'Agregar'}</button>{editing&&<button onClick={()=>{setEditing(null);setForm(freshStock)}}>Cancelar</button>}</div>
+      <div className="actions"><button className="primary" onClick={save}><Save size={18}/>{editing?'Guardar cambios':'Agregar y registrar compra'}</button>{editing&&<button onClick={()=>{setEditing(null);setForm(freshStock)}}>Cancelar</button>}</div>
     </Card>
-    <Card title="Existencias" subtitle={`${shown.length} artículos`}><SearchBox value={search} setValue={setSearch} placeholder="Buscar material, producto o proveedor…"/>{shown.length?<div className="inventoryGrid">{shown.map(i=>{const isArea=i.trackingMode==='area',isSheets=i.trackingMode==='sheets',isGrams=i.trackingMode==='grams',existence=isArea?`${num(i.areaRemaining).toFixed(2)} cm² (~${remainingAreaLength(i.areaRemaining,i.materialWidth).toFixed(2)} cm lineales)`:isSheets?`${num(i.stock)} hojas`:isGrams?`${num(i.stock)} g`:num(i.stock),costValue=isGrams?unitCost(i)*1000:unitCost(i);return <article className="inventoryCard" key={i.id}><div className="inventoryIcon">{i.type==='raw'?<Box/>:<Package/>}</div><div className="grow"><div className="itemTitle"><h3>{i.name}</h3>{available(i)<=num(i.minStock)&&<span className="stockAlert">Stock bajo</span>}</div><p>{categoryName(i.category)} · {i.supplier||'Sin proveedor'}</p><div className="itemNumbers"><span>Existencia <b>{existence}</b></span><span>Costo {isArea?'por compra':isSheets?'por hoja':isGrams?'por kg':''}<b>{money(costValue)}</b></span>{i.type==='product'&&<span>Venta <b>{money(i.salePrice)}</b></span>}</div></div><div className="rowActions"><button onClick={()=>{const category=['laser','3d','cricut'].includes(i.category)?i.category:'laser',trackingMode=i.type==='raw'&&category==='cricut'&&!['area','sheets'].includes(i.trackingMode)?'area':i.type==='raw'&&category==='3d'&&i.trackingMode!=='grams'?'grams':i.trackingMode||'units';setEditing(i.id);setForm({...freshStock,...i,category,trackingMode});scrollTo({top:0,behavior:'smooth'})}}>Editar</button><button className="iconButton danger" onClick={()=>confirm('¿Eliminar este artículo?')&&setItems(items.filter(x=>x.id!==i.id))}><Trash2 size={16}/></button></div></article>})}</div>:<Empty text="Todavía no hay artículos registrados."/>}</Card></>
+    <Card title="Existencias" subtitle={`${shown.length} artículos`}><SearchBox value={search} setValue={setSearch} placeholder="Buscar material, producto o proveedor…"/>{shown.length?<div className="inventoryGrid">{shown.map(i=>{const isArea=i.trackingMode==='area',isSheets=i.trackingMode==='sheets',isGrams=i.trackingMode==='grams',existence=isArea?`${num(i.areaRemaining).toFixed(2)} cm² (~${remainingAreaLength(i.areaRemaining,i.materialWidth).toFixed(2)} cm lineales)`:isSheets?`${num(i.stock)} hojas`:isGrams?`${num(i.stock)} g`:num(i.stock),costValue=isGrams?unitCost(i)*1000:unitCost(i);return <article className="inventoryCard" key={i.id}><div className="inventoryIcon">{i.type==='raw'?<Box/>:<Package/>}</div><div className="grow"><div className="itemTitle"><h3>{i.name}</h3>{available(i)<=num(i.minStock)&&<span className="stockAlert">Stock bajo</span>}</div><p>{categoryName(i.category)} · {i.supplier||'Sin proveedor'}</p><div className="itemNumbers"><span>Existencia <b>{existence}</b></span><span>Costo {isArea?'por compra':isSheets?'por hoja':isGrams?'por kg':''}<b>{money(costValue)}</b></span>{i.type==='product'&&<span>Venta <b>{money(i.salePrice)}</b></span>}</div></div><div className="rowActions"><button onClick={()=>startPurchase(i)}><Plus size={15}/>Reabastecer</button><button onClick={()=>{const category=['laser','3d','cricut'].includes(i.category)?i.category:'laser',trackingMode=i.type==='raw'&&category==='cricut'&&!['area','sheets'].includes(i.trackingMode)?'area':i.type==='raw'&&category==='3d'&&i.trackingMode!=='grams'?'grams':i.trackingMode||'units';setEditing(i.id);setForm({...freshStock,...i,category,trackingMode});scrollTo({top:0,behavior:'smooth'})}}>Editar</button><button className="iconButton danger" onClick={()=>confirm('¿Eliminar este artículo?')&&setItems(items.filter(x=>x.id!==i.id))}><Trash2 size={16}/></button></div></article>})}</div>:<Empty text="Todavía no hay artículos registrados."/>}</Card></>
 }
 
 function Clients({clients,setClients}){

@@ -31,6 +31,25 @@ export function inventoryQuantityLabel(item) {
   return 'piezas'
 }
 
+export function createInventoryPurchaseTransaction(item, purchase = {}) {
+  return {
+    id:purchase.id,
+    type:'purchase',
+    category:item?.type === 'product' ? 'products' : 'materials',
+    concept:`Compra de ${item?.name || 'inventario'}`,
+    amount:amount(purchase.amount ?? item?.purchaseTotal),
+    date:purchase.date || item?.purchaseDate || dateValue(new Date().toISOString()),
+    method:purchase.method || item?.purchaseMethod || 'other',
+    supplier:purchase.supplier ?? item?.supplier ?? '',
+    inventoryId:item?.id || '',
+    quantity:amount(purchase.quantity ?? item?.purchaseQty),
+    inventoryApplied:true,
+    source:'inventory',
+    notes:String(purchase.notes || '').trim(),
+    createdAt:purchase.createdAt || new Date().toISOString(),
+  }
+}
+
 export function applyInventoryPurchase(items, transaction) {
   if (!transaction?.inventoryId) return items
 
