@@ -22,6 +22,7 @@ import {
 import {calculateFilamentBreakdown, resolvePrintPrice} from '../src/pricing/print3d.js'
 import {createPayment, isOrderFinalized, isPaymentOverdue, normalizePaymentPlan, paymentSummary, settleAndDeliverOrder} from '../src/orders/payments.js'
 import {createProductionParameters, defaultProfileForJob} from '../src/productionPresets.js'
+import {applyInventoryPurchase, financeSummary} from '../src/finance.js'
 
 test('cada máquina inicia con un perfil de producción recomendado', () => {
   const print = createProductionParameters('3d','detail')
@@ -334,4 +335,43 @@ test('entregar un pedido ya liquidado no duplica el pago', () => {
 
   assert.equal(order.status,'delivered')
   assert.equal(order.payments.length,1)
+})
+
+test('finanzas separa cobros, compras y gastos sin reducir las ventas', () => {
+  const summary=financeSummary({
+    month:'2026-08',
+    orders:[{status:'delivered',total:1000,productionCost:400,createdAt:'2026-08-01T12:00:00Z',deliveredAt:'2026-08-02T12:00:00Z',payments:[{amount:800,date:'2026-08-02'}]}],
+    transactions:[
+      {type:'purchase',amount:300,date:'2026-08-02'},
+      {type:'expense',amount:100,date:'2026-08-03'},
+    ],
+    inventory:[],
+  })
+  assert.equal(summary.collected,800)
+  assert.equal(summary.deliveredSales,1000)
+  assert.equal(summary.purchases,300)
+  assert.equal(summary.expenses,100)
+  assert.equal(summary.cashFlow,400)
+  assert.equal(summary.estimatedNetProfit,500)
+})
+
+test('finanzas muestra como pendiente el saldo no cobrado', () => {
+  const summary=financeSummary({orders:[{status:'process',total:500,payments:[{amount:200,date:'2026-08-01'}]}]})
+  assert.equal(summary.receivable,300)
+})
+
+test('registrar una compra suma piezas al inventario y actualiza el costo promedio', () => {
+  const items=[{id:'tumbler',trackingMode:'units',stock:5,purchaseQty:5,purchaseTotal:500,supplier:'A'}]
+  const updated=applyInventoryPurchase(items,{inventoryId:'tumbler',quantity:5,amount:750,supplier:'B',date:'2026-08-02'})
+  assert.equal(updated[0].stock,10)
+  assert.equal(updated[0].purchaseTotal,1250)
+  assert.equal(updated[0].purchaseQty,10)
+  assert.equal(updated[0].supplier,'B')
+})
+
+test('registrar material por superficie suma el área comprada', () => {
+  const items=[{id:'vinyl',trackingMode:'area',stock:1,materialWidth:60,materialLength:100,areaRemaining:3000,purchaseQty:1,purchaseTotal:60}]
+  const updated=applyInventoryPurchase(items,{inventoryId:'vinyl',quantity:1,amount:70,date:'2026-08-02'})
+  assert.equal(updated[0].areaRemaining,9000)
+  assert.equal(updated[0].stock,2)
 })
