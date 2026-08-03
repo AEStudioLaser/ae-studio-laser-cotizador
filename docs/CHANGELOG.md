@@ -1,5 +1,20 @@
 # Changelog
 
+## 20.0.0 — Registro de pagos simplificado
+
+- Se eliminó la selección obligatoria entre anticipo y pago completo.
+- El anticipo o los abonos se activan únicamente cuando el pedido los necesita.
+- La nueva acción **Entregado y pagado** registra automáticamente el saldo restante con su método de pago.
+- Los pedidos liquidados pasan inmediatamente a **Finalizados** y conservan el historial completo de pagos.
+
+## 19.0.0 — Pagos, pedidos finalizados y cotizaciones sin material
+
+- Después de guardar un pedido se puede elegir **Anticipo y saldo al entregar** o **Pago completo al entregar**.
+- Un pedido entregado con saldo pendiente permanece en **Activos** hasta quedar liquidado.
+- Los pedidos entregados y pagados pasan automáticamente a **Finalizados** y quedan protegidos contra modificaciones.
+- Los cotizadores de Láser y Cricut permiten elegir **Sin material** para no duplicar costos incluidos en un precio manual o de catálogo.
+- Los productos, hojas, superficies y filamentos elegidos desde Inventario se descuentan al crear el pedido; el pedido muestra exactamente qué se descontó.
+
 ## 18.0.0 — Biblioteca de parámetros
 
 - Los parámetros se retiraron de los tres cotizadores para conservar formularios sencillos.
