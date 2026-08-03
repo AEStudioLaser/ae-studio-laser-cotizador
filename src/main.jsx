@@ -4,7 +4,7 @@ import {
   Archive, BarChart3, Bell, BookOpen, Box, Calculator, Check, ClipboardList, Cloud, CloudOff,
   FileText, Flame, LogIn, LogOut, Menu, MessageCircle, Package, Plus, Printer,
   RefreshCw, RotateCcw, Save, Search, Scissors, Settings, Trash2, UserRound,
-  Users, Wifi, X, Palette, PencilRuler
+  Users, WalletCards, Wifi, X, Palette, PencilRuler
 } from 'lucide-react'
 import './styles.css'
 import './service.css'
@@ -12,6 +12,7 @@ import {blankCatalogProduct, defaultCatalog} from './catalogData'
 import {cloud, isCloudConfigured} from './cloud'
 import Design3DPage from './design3d/Design3DPage'
 import CreativeProjectsPage from './creative/CreativeProjectsPage'
+import FinancePage from './FinancePage'
 import {calculateCricutConsumption, calculateServicePrice, calculateSheetMaterialCost, remainingAreaLength, resolveServiceFinalPrice} from './pricing/serviceQuote'
 import {calculateFilamentBreakdown, resolvePrintPrice} from './pricing/print3d'
 import OrderPayments from './orders/OrderPayments'
@@ -52,6 +53,7 @@ function App(){
   const [clients,setClients]=useLocal('ae_clients_v5',[])
   const [models,setModels]=useLocal('ae_models_v5',[])
   const [creativeProjects,setCreativeProjects]=useLocal('ae_creative_projects_v1',[])
+  const [financeTransactions,setFinanceTransactions]=useLocal('ae_finance_v1',[])
   const [quoteDraft,setQuoteDraft]=useState(null)
   const [notificationsEnabled,setNotificationsEnabled]=useLocal('ae_notifications_enabled_v1',false)
   const [unreadOrders,setUnreadOrders]=useState(0)
@@ -59,7 +61,7 @@ function App(){
   const [syncStatus,setSyncStatus]=useState(isCloudConfigured?'signed-out':'local'),[lastSynced,setLastSynced]=useState('')
   const skipUpload=useRef(false),stateRef=useRef(null)
   const deviceId=useMemo(()=>{let id=localStorage.getItem('ae_device_id');if(!id){id=uid();localStorage.setItem('ae_device_id',id)}return id},[])
-  const cloudState=useMemo(()=>({version:2,settings,quotes,orders,inventory,catalog,clients,models,creativeProjects}),[settings,quotes,orders,inventory,catalog,clients,models,creativeProjects])
+  const cloudState=useMemo(()=>({version:3,settings,quotes,orders,inventory,catalog,clients,models,creativeProjects,financeTransactions}),[settings,quotes,orders,inventory,catalog,clients,models,creativeProjects,financeTransactions])
   stateRef.current=cloudState
 
   const applyCloudState=useCallback(payload=>{
@@ -73,7 +75,8 @@ function App(){
     if(Array.isArray(payload.clients))setClients(payload.clients)
     if(Array.isArray(payload.models))setModels(payload.models)
     if(Array.isArray(payload.creativeProjects))setCreativeProjects(payload.creativeProjects)
-  },[setSettings,setQuotes,setOrders,setInventory,setCatalog,setClients,setModels,setCreativeProjects])
+    if(Array.isArray(payload.financeTransactions))setFinanceTransactions(payload.financeTransactions)
+  },[setSettings,setQuotes,setOrders,setInventory,setCatalog,setClients,setModels,setCreativeProjects,setFinanceTransactions])
 
   const pushCloud=useCallback(async()=>{
     if(!cloud||!session?.user)return
@@ -162,7 +165,7 @@ function App(){
     return()=>{removeEventListener('online',online);removeEventListener('offline',offline)}
   },[session?.user?.id,pullCloud])
   useEffect(()=>{'serviceWorker'in navigator&&navigator.serviceWorker.register('/sw.js').catch(()=>{})},[])
-  const nav=[['dashboard','Resumen',BarChart3],['quote','Impresión 3D',Calculator],['design3d','Diseño 3D',PencilRuler],['laser','Láser',Flame],['cricut','Cricut',Scissors],['parameters','Parámetros',BookOpen],['creative','Diseño creativo',Palette],['catalog','Catálogo',Archive],['orders','Pedidos',ClipboardList],['inventory','Inventario',Package],['clients','Clientes',Users],['quotes','Cotizaciones',FileText],['models','Modelos 3D',Box],['cloud','Sincronización',Cloud],['settings','Configuración',Settings]]
+  const nav=[['dashboard','Resumen',BarChart3],['quote','Impresión 3D',Calculator],['design3d','Diseño 3D',PencilRuler],['laser','Láser',Flame],['cricut','Cricut',Scissors],['parameters','Parámetros',BookOpen],['creative','Diseño creativo',Palette],['catalog','Catálogo',Archive],['orders','Pedidos',ClipboardList],['finance','Finanzas',WalletCards],['inventory','Inventario',Package],['clients','Clientes',Users],['quotes','Cotizaciones',FileText],['models','Modelos 3D',Box],['cloud','Sincronización',Cloud],['settings','Configuración',Settings]]
   const go=id=>{setPage(id);setOpen(false)}
   const signIn=async(email,password)=>{const {error}=await cloud.auth.signInWithPassword({email,password});if(error)throw error}
   const signUp=async(email,password)=>{const {data,error}=await cloud.auth.signUp({email,password});if(error)throw error;return data}
@@ -183,6 +186,7 @@ function App(){
         {page==='creative'&&<CreativeProjectsPage projects={creativeProjects} setProjects={setCreativeProjects} clients={clients} inventory={inventory} orders={orders} products={catalog}/>}
         {page==='catalog'&&<Catalog products={catalog} setProducts={setCatalog}/>}
         {page==='orders'&&<Orders orders={orders} setOrders={setOrders}/>}
+        {page==='finance'&&<FinancePage orders={orders} inventory={inventory} setInventory={setInventory} transactions={financeTransactions} setTransactions={setFinanceTransactions}/>}
         {page==='inventory'&&<Inventory items={inventory} setItems={setInventory}/>}
         {page==='clients'&&<Clients clients={clients} setClients={setClients}/>}
         {page==='quotes'&&<Quotes quotes={quotes} setQuotes={setQuotes}/>}
@@ -388,7 +392,7 @@ function Orders({orders,setOrders}){
     const paymentMatches=paymentFilter==='all'||paymentSummary(order).status===paymentFilter
     return productionMatches&&paymentMatches
   })
-  const changeStatus=(order,status)=>update(order.id,{status})
+  const changeStatus=(order,status)=>update(order.id,{status,...(status==='delivered'?{deliveredAt:new Date().toISOString()}:{})})
   const deliverAndPay=(order,method)=>replace(settleAndDeliverOrder(order,{id:uid(),date:today(),method,createdAt:new Date().toISOString()}))
   return <><div className="stats compact paymentStats"><Stat label="Pedidos activos" value={activeOrders.length} tone="blue"/><Stat label="Cobrado" value={money(collected)} tone="green"/><Stat label="Por cobrar" value={money(receivable)} tone="orange"/><Stat label="Pagos vencidos" value={overdue} tone="purple"/></div>
     <Card title="Pedidos y pagos" subtitle="Los pedidos entregados y pagados pasan a Finalizados y quedan protegidos contra cambios."><div className="orderFilters"><div className="filters">{[['active','Activos',activeOrders.length],['finalized','Finalizados',finalizedOrders.length],['cancelled','Cancelados',orders.filter(order=>order.status==='cancelled').length]].map(([id,label,count])=><button key={id} className={filter===id?'active':''} onClick={()=>setFilter(id)}>{label}<small>{count}</small></button>)}</div><label className="paymentFilter"><span>Estado de pago</span><select value={paymentFilter} onChange={event=>setPaymentFilter(event.target.value)}><option value="all">Todos</option><option value="unpaid">Sin pago</option><option value="partial">Pago parcial</option><option value="paid">Pagado</option></select></label></div>
