@@ -1,4 +1,4 @@
-const CACHE = 'ae-studio-maker-v20-simple-payments'
+const CACHE = 'ae-studio-maker-v21-finance'
 const CORE = ['/', '/manifest.webmanifest', '/logo-ae.png', '/icons/icon-192.png', '/icons/icon-512.png']
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(CORE)))
