@@ -1,5 +1,13 @@
 # Changelog
 
+## 21.0.0 — Finanzas sencillas
+
+- Se agregó un módulo de Finanzas con cobros, cuentas por cobrar, compras, gastos y flujo mensual.
+- Los cobros se toman automáticamente de los pagos registrados en Pedidos.
+- Las compras pueden aumentar las existencias y actualizar el costo promedio de un artículo del Inventario.
+- Las compras y los gastos reducen el flujo de dinero, pero no alteran el historial de ventas.
+- El resumen muestra utilidad estimada y valor del inventario para facilitar el control interno.
+
 ## 20.0.0 — Registro de pagos simplificado
 
 - Se eliminó la selección obligatoria entre anticipo y pago completo.
