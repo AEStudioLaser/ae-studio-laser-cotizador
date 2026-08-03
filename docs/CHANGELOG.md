@@ -1,5 +1,13 @@
 # Changelog
 
+## 22.0.0 — Compras sin doble captura
+
+- Inventario se convirtió en el único lugar para registrar compras de materiales y productos.
+- Al agregar un artículo con costo de compra, el movimiento aparece automáticamente en Finanzas.
+- Cada artículo existente tiene la acción **Reabastecer** para aumentar existencias y registrar la salida de dinero en un solo paso.
+- Finanzas conserva la captura de gastos y compras externas que no pertenecen al inventario.
+- Los movimientos anteriores se conservan sin duplicarse ni modificar existencias históricas.
+
 ## 21.0.0 — Finanzas sencillas
 
 - Se agregó un módulo de Finanzas con cobros, cuentas por cobrar, compras, gastos y flujo mensual.
