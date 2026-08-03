@@ -62,3 +62,23 @@ export function createPayment({id, amount, date, method, note, createdAt}) {
     createdAt,
   }
 }
+
+export function settleAndDeliverOrder(order, {id, date, method = 'cash', createdAt} = {}) {
+  const summary = paymentSummary(order)
+  if (summary.balance <= 0.005) return {...order, status: 'delivered'}
+
+  const payment = createPayment({
+    id,
+    amount: summary.balance,
+    date,
+    method,
+    note: 'Liquidación al entregar',
+    createdAt,
+  })
+
+  return {
+    ...order,
+    status: 'delivered',
+    payments: [payment, ...(Array.isArray(order?.payments) ? order.payments : [])],
+  }
+}

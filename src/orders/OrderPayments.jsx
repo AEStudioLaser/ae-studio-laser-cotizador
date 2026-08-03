@@ -1,6 +1,6 @@
 import React, {useMemo, useState} from 'react'
 import {ChevronDown, ChevronUp, CircleDollarSign, Plus, Trash2} from 'lucide-react'
-import {createPayment, normalizePaymentPlan, PAYMENT_METHODS, PAYMENT_PLANS, paymentMethodLabel, paymentSummary} from './payments'
+import {createPayment, PAYMENT_METHODS, paymentMethodLabel, paymentSummary} from './payments'
 
 const money = value =>
   new Intl.NumberFormat('es-MX', {style: 'currency', currency: 'MXN'}).format(Number(value) || 0)
@@ -18,19 +18,24 @@ const statusLabels = {
   paid: 'Pagado',
 }
 
-export default function OrderPayments({order, onChange, locked = false}) {
+export default function OrderPayments({order, onChange, onDeliverAndPay, locked = false}) {
   const [open, setOpen] = useState(false)
+  const [settlementMethod, setSettlementMethod] = useState('cash')
   const [form, setForm] = useState({amount: '', date: today(), method: 'transfer', note: ''})
   const summary = useMemo(() => paymentSummary(order), [order])
   const payments = Array.isArray(order.payments) ? order.payments : []
-  const paymentPlan = normalizePaymentPlan(order.paymentPlan)
-  const payOnDelivery = paymentPlan === 'on_delivery'
+  const advanceEnabled = order.advanceEnabled ?? payments.length > 0
+
+  const toggleAdvance = enabled => {
+    onChange({...order, advanceEnabled: enabled})
+    setOpen(enabled || payments.length > 0)
+  }
 
   const addPayment = () => {
     const amount = Number(form.amount)
-    if (!Number.isFinite(amount) || amount <= 0) return alert('Escribe un abono mayor que cero.')
+    if (!Number.isFinite(amount) || amount <= 0) return alert('Escribe un anticipo o abono mayor que cero.')
     if (amount > summary.balance + 0.005) {
-      return alert(`El abono no puede ser mayor que el saldo de ${money(summary.balance)}.`)
+      return alert(`El pago no puede ser mayor que el saldo de ${money(summary.balance)}.`)
     }
 
     const payment = createPayment({
@@ -38,7 +43,7 @@ export default function OrderPayments({order, onChange, locked = false}) {
       id: uid(),
       createdAt: new Date().toISOString(),
     })
-    onChange({...order, payments: [payment, ...payments]})
+    onChange({...order, advanceEnabled: true, payments: [payment, ...payments]})
     setForm({amount: '', date: today(), method: 'transfer', note: ''})
   }
 
@@ -49,36 +54,45 @@ export default function OrderPayments({order, onChange, locked = false}) {
   }
 
   return <section className="paymentBox">
-    <div className="paymentPlanControl">
-      <label><span>Forma de pago</span><select disabled={locked} value={paymentPlan} onChange={event => onChange({...order, paymentPlan: event.target.value})}>{PAYMENT_PLANS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
-      <p>{payOnDelivery ? 'Puedes marcar el pedido como Entregado y registrar el pago completo cuando lo recibas.' : 'Registra el anticipo y después agrega los abonos hasta liquidar el pedido.'}</p>
-    </div>
+    {!locked && summary.balance > 0 && <div className="simplePaymentActions">
+      <label className="advanceSwitch">
+        <input type="checkbox" checked={advanceEnabled} onChange={event => toggleAdvance(event.target.checked)}/>
+        <span><b>Este pedido lleva anticipo o abonos</b><small>Actívalo solamente si el cliente pagará antes de la entrega.</small></span>
+      </label>
+      <div className="deliverAndPay">
+        <label><span>Método del pago final</span><select value={settlementMethod} onChange={event => setSettlementMethod(event.target.value)}>{PAYMENT_METHODS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
+        <button className="primary" onClick={() => onDeliverAndPay?.(order, settlementMethod)}><CircleDollarSign size={18}/>Entregado y pagado</button>
+      </div>
+    </div>}
+
+    {!locked && summary.balance <= 0.005 && order.status !== 'delivered' && <div className="paidDeliveryAction"><span>Este pedido ya está liquidado.</span><button className="primary" onClick={() => onDeliverAndPay?.(order, settlementMethod)}>Marcar como entregado</button></div>}
+
     <div className="paymentSummary">
       <div>
         <span className={`paymentStatus ${summary.status}`}>{statusLabels[summary.status]}</span>
         <b>{money(summary.balance)} por cobrar</b>
         <small>{money(summary.paid)} recibido de {money(summary.total)}</small>
       </div>
-      <button className="paymentToggle" onClick={() => setOpen(!open)}>
+      {(locked || payments.length > 0 || advanceEnabled) && <button className="paymentToggle" onClick={() => setOpen(!open)}>
         <CircleDollarSign size={18}/>
-        {locked ? 'Ver pagos' : summary.paid > 0 ? 'Pagos' : payOnDelivery ? 'Registrar pago completo' : 'Registrar anticipo'}
-        {open ? <ChevronUp size={17}/> : <ChevronDown size={17}/>}
-      </button>
+        {locked ? 'Ver pagos' : payments.length ? 'Anticipos y abonos' : 'Registrar anticipo'}
+        {open ? <ChevronUp size={17}/> : <ChevronDown size={17}/>} 
+      </button>}
     </div>
     <div className="paymentProgress" aria-label={`${summary.progress.toFixed(0)}% pagado`}>
       <span style={{width: `${summary.progress}%`}}/>
     </div>
 
     {open && <div className="paymentDetails">
-      {!locked && summary.balance > 0 && <div className="paymentForm">
-        <label className="field"><span>{payments.length ? 'Nuevo abono ($)' : payOnDelivery ? 'Pago recibido ($)' : 'Anticipo recibido ($)'}</span><input type="number" min=".01" step=".01" max={summary.balance} value={form.amount} onChange={event => setForm({...form, amount: event.target.value})} placeholder={String(summary.balance)}/></label>
+      {!locked && advanceEnabled && summary.balance > 0 && <div className="paymentForm">
+        <label className="field"><span>{payments.length ? 'Nuevo abono ($)' : 'Anticipo recibido ($)'}</span><input type="number" min=".01" step=".01" max={summary.balance} value={form.amount} onChange={event => setForm({...form, amount: event.target.value})} placeholder={String(summary.balance)}/></label>
         <label className="field"><span>Fecha del pago</span><input type="date" value={form.date} onChange={event => setForm({...form, date: event.target.value})}/></label>
         <label className="field"><span>Método</span><select value={form.method} onChange={event => setForm({...form, method: event.target.value})}>{PAYMENT_METHODS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
         <label className="field"><span>Nota opcional</span><input value={form.note} onChange={event => setForm({...form, note: event.target.value})} placeholder="Ej. Anticipo para iniciar"/></label>
-        <button className="primary paymentAdd" onClick={addPayment}><Plus size={17}/>{payments.length ? 'Agregar abono' : payOnDelivery ? 'Guardar pago' : 'Guardar anticipo'}</button>
+        <button className="primary paymentAdd" onClick={addPayment}><Plus size={17}/>{payments.length ? 'Agregar abono' : 'Guardar anticipo'}</button>
       </div>}
 
-      <label className="field paymentDue"><span>Fecha prometida para liquidar</span><input disabled={locked} type="date" value={order.paymentDueDate || ''} onChange={event => onChange({...order, paymentDueDate: event.target.value})}/></label>
+      {!locked && advanceEnabled && summary.balance > 0 && <label className="field paymentDue"><span>Fecha prometida para liquidar</span><input type="date" value={order.paymentDueDate || ''} onChange={event => onChange({...order, paymentDueDate: event.target.value})}/></label>}
 
       {payments.length > 0 && <div className="paymentHistory">
         <h4>Historial de pagos</h4>
