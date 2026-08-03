@@ -22,7 +22,7 @@ import {
 import {calculateFilamentBreakdown, resolvePrintPrice} from '../src/pricing/print3d.js'
 import {createPayment, isOrderFinalized, isPaymentOverdue, normalizePaymentPlan, paymentSummary, settleAndDeliverOrder} from '../src/orders/payments.js'
 import {createProductionParameters, defaultProfileForJob} from '../src/productionPresets.js'
-import {applyInventoryPurchase, financeSummary} from '../src/finance.js'
+import {applyInventoryPurchase, createInventoryPurchaseTransaction, financeSummary} from '../src/finance.js'
 
 test('cada máquina inicia con un perfil de producción recomendado', () => {
   const print = createProductionParameters('3d','detail')
@@ -358,6 +358,23 @@ test('finanzas separa cobros, compras y gastos sin reducir las ventas', () => {
 test('finanzas muestra como pendiente el saldo no cobrado', () => {
   const summary=financeSummary({orders:[{status:'process',total:500,payments:[{amount:200,date:'2026-08-01'}]}]})
   assert.equal(summary.receivable,300)
+})
+
+test('una compra capturada en inventario genera un solo movimiento financiero', () => {
+  const transaction=createInventoryPurchaseTransaction({
+    id:'lanyard',name:'Lanyard azul',type:'product',purchaseQty:5,purchaseTotal:190,
+    purchaseDate:'2026-08-02',purchaseMethod:'transfer',supplier:'Proveedor A',
+  },{id:'purchase-1',createdAt:'2026-08-02T12:00:00.000Z'})
+
+  assert.equal(transaction.id,'purchase-1')
+  assert.equal(transaction.type,'purchase')
+  assert.equal(transaction.category,'products')
+  assert.equal(transaction.inventoryId,'lanyard')
+  assert.equal(transaction.quantity,5)
+  assert.equal(transaction.amount,190)
+  assert.equal(transaction.method,'transfer')
+  assert.equal(transaction.source,'inventory')
+  assert.equal(transaction.inventoryApplied,true)
 })
 
 test('registrar una compra suma piezas al inventario y actualiza el costo promedio', () => {
