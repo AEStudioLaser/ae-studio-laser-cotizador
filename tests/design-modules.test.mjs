@@ -20,7 +20,25 @@ import {
   resolveServiceFinalPrice,
 } from '../src/pricing/serviceQuote.js'
 import {calculateFilamentBreakdown, resolvePrintPrice} from '../src/pricing/print3d.js'
-import {createPayment, isPaymentOverdue, paymentSummary} from '../src/orders/payments.js'
+import {createPayment, isOrderFinalized, isPaymentOverdue, normalizePaymentPlan, paymentSummary, settleAndDeliverOrder} from '../src/orders/payments.js'
+import {createProductionParameters, defaultProfileForJob} from '../src/productionPresets.js'
+
+test('cada máquina inicia con un perfil de producción recomendado', () => {
+  const print = createProductionParameters('3d','detail')
+  const laser = createProductionParameters('laser','mdf-cut')
+  const cricut = createProductionParameters('cricut','iron-on')
+
+  assert.equal(print.layerHeight,0.16)
+  assert.equal(laser.speed,400)
+  assert.equal(laser.airAssist,'Encendido')
+  assert.equal(cricut.mirror,'Sí')
+})
+
+test('el tipo de trabajo selecciona un perfil inicial coherente', () => {
+  assert.equal(defaultProfileForJob('laser','engrave'),'mdf-engrave')
+  assert.equal(defaultProfileForJob('cricut','stickers'),'printable-sticker')
+  assert.equal(defaultProfileForJob('cricut','paper'),'medium-cardstock')
+})
 
 test('las medidas predeterminadas del llavero son válidas', () => {
   assert.deepEqual(validateKeychain(DEFAULT_KEYCHAIN), {})
@@ -270,4 +288,50 @@ test('normaliza un pago antes de guardarlo en el historial', () => {
   assert.equal(payment.amount,250.5)
   assert.equal(payment.note,'Segundo abono')
   assert.equal(payment.method,'cash')
+})
+
+test('un pedido entregado con saldo pendiente sigue activo', () => {
+  assert.equal(isOrderFinalized({
+    status:'delivered',
+    total:500,
+    payments:[{amount:200}],
+  }),false)
+})
+
+test('solo un pedido entregado y liquidado queda finalizado', () => {
+  const paidOrder={total:500,payments:[{amount:500}]}
+
+  assert.equal(isOrderFinalized({...paidOrder,status:'ready'}),false)
+  assert.equal(isOrderFinalized({...paidOrder,status:'delivered'}),true)
+})
+
+test('los pedidos anteriores usan anticipo como forma de pago predeterminada', () => {
+  assert.equal(normalizePaymentPlan(), 'deposit')
+  assert.equal(normalizePaymentPlan('on_delivery'), 'on_delivery')
+})
+
+test('entregado y pagado liquida solamente el saldo pendiente', () => {
+  const order=settleAndDeliverOrder({
+    status:'ready',
+    total:500,
+    payments:[{id:'advance',amount:200}],
+  },{
+    id:'settlement',
+    date:'2026-08-02',
+    method:'cash',
+    createdAt:'2026-08-02T12:00:00.000Z',
+  })
+
+  assert.equal(order.status,'delivered')
+  assert.equal(order.payments[0].amount,300)
+  assert.equal(order.payments[0].method,'cash')
+  assert.equal(paymentSummary(order).balance,0)
+  assert.equal(isOrderFinalized(order),true)
+})
+
+test('entregar un pedido ya liquidado no duplica el pago', () => {
+  const order=settleAndDeliverOrder({status:'ready',total:100,payments:[{amount:100}]})
+
+  assert.equal(order.status,'delivered')
+  assert.equal(order.payments.length,1)
 })
