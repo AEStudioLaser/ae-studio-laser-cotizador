@@ -20,7 +20,7 @@ import {
   resolveServiceFinalPrice,
 } from '../src/pricing/serviceQuote.js'
 import {calculateFilamentBreakdown, resolvePrintPrice} from '../src/pricing/print3d.js'
-import {createPayment, isOrderFinalized, isPaymentOverdue, normalizePaymentPlan, paymentSummary, settleAndDeliverOrder} from '../src/orders/payments.js'
+import {createPayment, isOrderFinalized, isPaymentOverdue, normalizePaymentPlan, orderMatchesView, paymentSummary, settleAndDeliverOrder} from '../src/orders/payments.js'
 import {createProductionParameters, defaultProfileForJob} from '../src/productionPresets.js'
 import {applyInventoryPurchase, createInventoryPurchaseTransaction, financeSummary} from '../src/finance.js'
 
@@ -297,6 +297,18 @@ test('un pedido entregado con saldo pendiente sigue activo', () => {
     total:500,
     payments:[{amount:200}],
   }),false)
+})
+
+test('el acceso por cobrar incluye pedidos sin pago y con pago parcial', () => {
+  const unpaid={status:'pending',total:500,payments:[]}
+  const partial={status:'process',total:500,payments:[{amount:200}]}
+  const deliveredDue={status:'delivered',total:500,payments:[{amount:200}]}
+  const paid={status:'delivered',total:500,payments:[{amount:500}]}
+
+  assert.equal(orderMatchesView(unpaid,'active','due'),true)
+  assert.equal(orderMatchesView(partial,'active','due'),true)
+  assert.equal(orderMatchesView(deliveredDue,'active','due'),true)
+  assert.equal(orderMatchesView(paid,'active','due'),false)
 })
 
 test('solo un pedido entregado y liquidado queda finalizado', () => {
