@@ -44,6 +44,19 @@ export function isOrderFinalized(order) {
   return order?.status === 'delivered' && paymentSummary(order).status === 'paid'
 }
 
+export function orderMatchesView(order, filter = 'active', paymentFilter = 'all') {
+  const productionMatches = filter === 'active'
+    ? order?.status !== 'cancelled' && !isOrderFinalized(order)
+    : filter === 'finalized'
+      ? isOrderFinalized(order)
+      : order?.status === 'cancelled'
+  const payment = paymentSummary(order)
+  const paymentMatches = paymentFilter === 'all'
+    || (paymentFilter === 'due' ? payment.balance > 0 : payment.status === paymentFilter)
+
+  return productionMatches && paymentMatches
+}
+
 export function isPaymentOverdue(order, referenceDate = new Date()) {
   const {balance} = paymentSummary(order)
   if (balance <= 0 || !order?.paymentDueDate) return false
