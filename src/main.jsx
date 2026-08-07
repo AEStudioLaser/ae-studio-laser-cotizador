@@ -17,7 +17,7 @@ import {applyInventoryPurchase, createInventoryPurchaseTransaction, inventoryQua
 import {calculateCricutConsumption, calculateServicePrice, calculateSheetMaterialCost, remainingAreaLength, resolveServiceFinalPrice} from './pricing/serviceQuote'
 import {calculateFilamentBreakdown, resolvePrintPrice} from './pricing/print3d'
 import OrderPayments from './orders/OrderPayments'
-import {isOrderFinalized, isPaymentOverdue, paymentSummary, settleAndDeliverOrder} from './orders/payments'
+import {isOrderFinalized, isPaymentOverdue, orderMatchesView, paymentSummary, settleAndDeliverOrder} from './orders/payments'
 import {productionProfiles} from './productionPresets'
 
 const money=v=>new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(Number(v)||0)
@@ -32,7 +32,7 @@ const defaults={businessName:'A&E Studio Laser',phone:'',printer:'Bambu Lab A1',
   materials:[{id:'pla',name:'PLA',priceKg:298},{id:'petg',name:'PETG',priceKg:340}],
   laserMaterials:[{id:'mdf3',name:'MDF 3 mm',pricingMode:'sheet',sheetWidth:120,sheetHeight:240,sheetCost:160,waste:0},{id:'acrylic3',name:'Acrílico 3 mm',pricingMode:'sheet',sheetWidth:60,sheetHeight:40,sheetCost:240,waste:10},{id:'tumbler',name:'Termo para grabado',pricingMode:'unit',sheetWidth:0,sheetHeight:0,sheetCost:0,waste:0},{id:'steelplate',name:'Placa inoxidable',pricingMode:'unit',sheetWidth:0,sheetHeight:0,sheetCost:0,waste:0}],
   cricutMaterials:[{id:'vinyl',name:'Vinil adhesivo',pricingMode:'meter',sheetWidth:60,sheetHeight:100,sheetCost:65,waste:5},{id:'sticker',name:'Papel sticker A4',pricingMode:'sheet',sheetWidth:21,sheetHeight:29.7,sheetCost:12,waste:8},{id:'cardstock',name:'Cartulina 12 × 12',pricingMode:'sheet',sheetWidth:30.5,sheetHeight:30.5,sheetCost:15,waste:8}]}
-const freshQuote=s=>({client:'',project:'',comments:'',catalogProduct:'',material:s.materials[0]?.id||'pla',quantity:1,weight:50,hours:4,minutes:0,extras:0,labor:0,failure:num(s.failureRate??10),profit:num(s.defaultProfit)||50,multicolor:false,extraColors:[],priceMode:'auto',manualTotal:''})
+const freshQuote=s=>({client:'',project:'',comments:'',catalogProduct:'',material:'',quantity:1,weight:0,hours:0,minutes:0,extras:0,labor:0,failure:num(s.failureRate??10),profit:num(s.defaultProfit)||50,multicolor:false,extraColors:[],priceMode:'auto',manualTotal:''})
 const freshStock={type:'product',name:'',category:'laser',supplier:'',purchaseQty:1,purchaseTotal:0,stock:1,minStock:0,salePrice:0,purchaseDate:today(),purchaseMethod:'cash',trackingMode:'units',materialWidth:60,materialLength:100,areaRemaining:0}
 const freshClient={name:'',phone:'',email:'',notes:''}
 const unitCost=i=>num(i.purchaseTotal)/Math.max(1,num(i.purchaseQty))
@@ -45,7 +45,9 @@ function useLocal(key,initial,legacy){
 }
 
 function App(){
-  const [page,setPage]=useState(()=>new URLSearchParams(location.search).get('open')==='orders'?'orders':'dashboard'),[open,setOpen]=useState(false)
+  const [page,setPage]=useState(()=>new URLSearchParams(location.search).get('open')==='orders'?'orders':'dashboard')
+  const [open,setOpen]=useState(false)
+  const [orderView,setOrderView]=useState(()=>({filter:'active',paymentFilter:'all',key:Date.now()}))
   const [settings,setSettings]=useLocal('ae_settings_v10',()=>{try{const old=JSON.parse(localStorage.getItem('ae_settings_v7')||localStorage.getItem('ae_settings_v5')||localStorage.getItem('ae_stage1_settings')||'{}'),laser=old.laserMaterials||defaults.laserMaterials,extra=defaults.laserMaterials.filter(d=>!laser.some(m=>m.id===d.id));return{...defaults,...old,laserMaterials:[...laser,...extra],cricutMaterials:old.cricutMaterials||defaults.cricutMaterials}}catch{return defaults}})
   const [quotes,setQuotes]=useLocal('ae_quotes_v5',[],'ae_stage1_history')
   const [orders,setOrders]=useLocal('ae_orders_v5',[])
@@ -167,7 +169,10 @@ function App(){
   },[session?.user?.id,pullCloud])
   useEffect(()=>{'serviceWorker'in navigator&&navigator.serviceWorker.register('/sw.js').catch(()=>{})},[])
   const nav=[['dashboard','Resumen',BarChart3],['quote','Impresión 3D',Calculator],['design3d','Diseño 3D',PencilRuler],['laser','Láser',Flame],['cricut','Cricut',Scissors],['parameters','Parámetros',BookOpen],['creative','Diseño creativo',Palette],['catalog','Catálogo',Archive],['orders','Pedidos',ClipboardList],['finance','Finanzas',WalletCards],['inventory','Inventario',Package],['clients','Clientes',Users],['quotes','Cotizaciones',FileText],['models','Modelos 3D',Box],['cloud','Sincronización',Cloud],['settings','Configuración',Settings]]
-  const go=id=>{setPage(id);setOpen(false)}
+  const go=(id,view)=>{
+    if(id==='orders')setOrderView({filter:view?.filter||'active',paymentFilter:view?.paymentFilter||'all',key:Date.now()})
+    setPage(id);setOpen(false)
+  }
   const signIn=async(email,password)=>{const {error}=await cloud.auth.signInWithPassword({email,password});if(error)throw error}
   const signUp=async(email,password)=>{const {data,error}=await cloud.auth.signUp({email,password});if(error)throw error;return data}
   const signOut=async()=>{await cloud.auth.signOut();setSession(null);setCloudReady(false)}
@@ -186,7 +191,7 @@ function App(){
         {page==='parameters'&&<ParametersPage/>}
         {page==='creative'&&<CreativeProjectsPage projects={creativeProjects} setProjects={setCreativeProjects} clients={clients} inventory={inventory} orders={orders} products={catalog}/>}
         {page==='catalog'&&<Catalog products={catalog} setProducts={setCatalog}/>}
-        {page==='orders'&&<Orders orders={orders} setOrders={setOrders}/>}
+        {page==='orders'&&<Orders orders={orders} setOrders={setOrders} view={orderView}/>}
         {page==='finance'&&<FinancePage orders={orders} inventory={inventory} transactions={financeTransactions} setTransactions={setFinanceTransactions}/>}
         {page==='inventory'&&<Inventory items={inventory} setItems={setInventory} transactions={financeTransactions} setTransactions={setFinanceTransactions}/>}
         {page==='clients'&&<Clients clients={clients} setClients={setClients}/>}
@@ -218,11 +223,13 @@ function CloudPage({configured,session,status,lastSynced,onSignIn,onSignUp,onSig
 function Dashboard({orders,inventory,quotes,go,notificationsEnabled,onEnableNotifications}){
   const [choosingQuote,setChoosingQuote]=useState(false)
   const delivered=orders.filter(o=>o.status==='delivered'),sales=delivered.reduce((s,o)=>s+num(o.total),0),cost=delivered.reduce((s,o)=>s+num(o.productionCost),0)
-  const pending=orders.filter(o=>!['delivered','cancelled'].includes(o.status)).length,low=inventory.filter(i=>num(i.stock)<=num(i.minStock)),investment=inventory.reduce((s,i)=>s+unitCost(i)*num(i.stock),0)
+  const activeOrders=orders.filter(order=>order.status!=='cancelled'&&!isOrderFinalized(order))
+  const receivable=activeOrders.reduce((sum,order)=>sum+paymentSummary(order).balance,0)
+  const low=inventory.filter(i=>num(i.stock)<=num(i.minStock)),investment=inventory.reduce((s,i)=>s+unitCost(i)*num(i.stock),0)
   return <><section className="hero"><div><span>Panel del negocio</span><h2>Todo tu taller en un solo lugar</h2><p>Cotiza, controla pedidos y conoce el valor de tu inventario.</p></div><button className="primary" onClick={()=>setChoosingQuote(!choosingQuote)}><Plus size={18}/>Nueva cotización</button></section>
     {choosingQuote&&<section className="quotePicker" aria-label="Selecciona el tipo de cotización"><div><b>¿Qué deseas cotizar?</b><span>Selecciona el servicio para abrir el formulario correcto.</span></div><div className="quotePickerOptions"><button onClick={()=>go('quote')}><Calculator/><b>Impresión 3D</b><span>Piezas y modelos impresos</span></button><button onClick={()=>go('laser')}><Flame/><b>Láser</b><span>Corte y grabado</span></button><button onClick={()=>go('cricut')}><Scissors/><b>Cricut</b><span>Vinil, stickers y papel</span></button></div></section>}
     {!notificationsEnabled&&<button className="notificationPrompt" onClick={onEnableNotifications}><Bell size={19}/><span><b>Activa los avisos de pedidos</b><small>Recibe una alerta cuando se cree un pedido desde otro dispositivo.</small></span></button>}
-    <div className="stats"><Stat label="Ventas entregadas" value={money(sales)} tone="blue"/><Stat label="Utilidad estimada" value={money(sales-cost)} tone="green"/><Stat label="Pedidos activos" value={pending} tone="orange"/><Stat label="Inventario invertido" value={money(investment)} tone="purple"/></div>
+    <div className="stats dashboardStats"><Stat label="Ventas entregadas" value={money(sales)} tone="blue"/><Stat label="Utilidad estimada" value={money(sales-cost)} tone="green"/><Stat label="Pedidos activos" value={activeOrders.length} tone="orange" onClick={()=>go('orders',{filter:'active',paymentFilter:'all'})}/><Stat label="Por cobrar" value={money(receivable)} tone="orange" onClick={()=>go('orders',{filter:'active',paymentFilter:'due'})}/><Stat label="Inventario invertido" value={money(investment)} tone="purple"/></div>
     <div className="twoColumns"><Card title="Pedidos recientes" subtitle={`${orders.length} registrados`}>{orders.length?orders.slice(0,5).map(o=><div className="listRow" key={o.id}><div><b>{o.project||'Pedido'}</b><span>{o.client||'Sin cliente'}</span></div><div className="right"><Status value={o.status}/><b>{money(o.total)}</b></div></div>):<Empty text="Aún no hay pedidos."/>}</Card>
       <Card title="Alertas de inventario" subtitle={`${low.length} con existencia baja`}>{low.length?low.slice(0,6).map(i=><div className="listRow" key={i.id}><div><b>{i.name}</b><span>{i.category||'Sin categoría'}</span></div><span className="stockAlert">{num(i.stock)} disponibles</span></div>):<Empty text="Sin alertas de existencias."/>}</Card></div>
     <Card title="Actividad" subtitle="Información capturada"><div className="activity"><button onClick={()=>go('quotes')}><FileText/><b>{quotes.length}</b><span>Cotizaciones</span></button><button onClick={()=>go('orders')}><ClipboardList/><b>{orders.length}</b><span>Pedidos</span></button><button onClick={()=>go('inventory')}><Package/><b>{inventory.length}</b><span>Artículos</span></button></div></Card>
@@ -234,7 +241,7 @@ function Quote({settings,inventory,setInventory,catalog,quotes,setQuotes,orders,
   const [form,setForm]=useState(fromDesign),[saved,setSaved]=useState(false)
   useEffect(()=>{if(!designDraft)return;setForm({...freshQuote(settings),project:designDraft.project,quantity:designDraft.quantity,weight:0,hours:0,minutes:0,designMeta:designDraft.designMeta});setSaved(false);onDraftConsumed?.()},[designDraft?.id])
   const inventoryMaterials=(inventory||[]).filter(i=>i.category==='3d'&&i.type!=='product'&&num(i.stock)>0).map(i=>({id:`stock-${i.id}`,name:`${i.name} (Inventario: ${num(i.stock)}${i.trackingMode==='grams'?' g':''})`,priceKg:i.trackingMode==='grams'?unitCost(i)*1000:unitCost(i),inventoryId:i.id,trackingMode:i.trackingMode||'units'})),materialCatalog=[...(settings.materials||[]),...inventoryMaterials],catalogProducts=(catalog||[]).filter(p=>(p.service==='3d'||p.service==='all')&&p.status!=='hidden')
-  const update=(k,v)=>{setSaved(false);setForm({...form,[k]:v})},material=materialCatalog.find(m=>m.id===form.material)||materialCatalog[0]||{name:'Material',priceKg:0},catalogItem=catalogProducts.find(p=>p.id===form.catalogProduct)
+  const update=(k,v)=>{setSaved(false);setForm({...form,[k]:v})},material=form.material?(materialCatalog.find(m=>m.id===form.material)||{id:'',name:'Sin material',priceKg:0}):{id:'',name:'Sin material',priceKg:0},catalogItem=catalogProducts.find(p=>p.id===form.catalogProduct)
   const extraColors=(form.multicolor?form.extraColors:[]).map(color=>({...color,material:materialCatalog.find(m=>m.id===color.material)||materialCatalog[0]}))
   const calc=useMemo(()=>{
     const qty=Math.max(1,num(form.quantity)),h=num(form.hours)+num(form.minutes)/60,filament=calculateFilamentBreakdown({primaryMaterial:material,primaryWeight:form.weight,extraColors}),materialCost=filament.totalCost,electricity=h*num(settings.printerWatts)/1000*num(settings.electricityPrice),wear=h*num(settings.wearPerHour),repeatableCost=materialCost+electricity+wear,failureCost=repeatableCost*Math.max(0,num(form.failure))/100,productionCost=repeatableCost+failureCost+num(form.labor)+num(form.extras),raw=productionCost*(1+num(form.profit)/100),catalogBase=num(catalogItem?.price)*qty,step=Math.max(1,num(settings.roundTo)),automaticTotal=Math.ceil(Math.max(raw,catalogBase)/step)*step
@@ -265,7 +272,7 @@ function Quote({settings,inventory,setInventory,catalog,quotes,setQuotes,orders,
     {models.length>0&&<Field label="Cargar modelo guardado" full><select defaultValue="" onChange={e=>{loadModel(e.target.value);e.target.value=''}}><option value="">Seleccionar modelo…</option>{models.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></Field>}
     {catalogProducts.length>0&&<Field label="Producto del catálogo (opcional)" full><select value={form.catalogProduct} onChange={e=>{const item=catalogProducts.find(p=>p.id===e.target.value);setForm({...form,catalogProduct:e.target.value,project:form.project||item?.name||''});setSaved(false)}}><option value="">Cotización desde cero</option>{catalogProducts.map(p=><option key={p.id} value={p.id}>{p.name} — {money(p.price)}</option>)}</select></Field>}
     <div className="formGrid"><Field label="Cliente"><input value={form.client} onChange={e=>update('client',e.target.value)} placeholder="Nombre del cliente"/></Field><Field label="Proyecto"><input value={form.project} onChange={e=>update('project',e.target.value)} placeholder="Ej. Llavero personalizado"/></Field><Field label="Detalles o comentarios" full><textarea rows="3" value={form.comments||''} onChange={e=>update('comments',e.target.value)} placeholder="Ej. 5 llaveros azules, 3 rojos y 2 blancos"/></Field>
-      <Field label="Material"><select value={form.material} onChange={e=>update('material',e.target.value)}><optgroup label="Materiales configurados">{(settings.materials||[]).map(m=><option key={m.id} value={m.id}>{m.name} — {money(m.priceKg)}/kg</option>)}</optgroup>{inventoryMaterials.length>0&&<optgroup label="Inventario de Impresión 3D">{inventoryMaterials.map(m=><option key={m.id} value={m.id}>{m.name} — {money(m.priceKg)}/kg</option>)}</optgroup>}</select></Field><Field label="Cantidad"><input type="number" min="1" value={form.quantity} onChange={e=>update('quantity',e.target.value)}/></Field>
+      <Field label="Material"><select value={form.material} onChange={e=>update('material',e.target.value)}><option value="">Sin material (no sumar costo)</option><optgroup label="Materiales configurados">{(settings.materials||[]).map(m=><option key={m.id} value={m.id}>{m.name} — {money(m.priceKg)}/kg</option>)}</optgroup>{inventoryMaterials.length>0&&<optgroup label="Inventario de Impresión 3D">{inventoryMaterials.map(m=><option key={m.id} value={m.id}>{m.name} — {money(m.priceKg)}/kg</option>)}</optgroup>}</select></Field><Field label="Cantidad"><input type="number" min="1" value={form.quantity} onChange={e=>update('quantity',e.target.value)}/></Field>
       <Field label={form.multicolor?'Peso del color principal (g)':'Peso total (g)'}><input type="number" min="0" value={form.weight} onChange={e=>update('weight',e.target.value)}/></Field><div className="splitFields"><Field label="Horas"><input type="number" min="0" value={form.hours} onChange={e=>update('hours',e.target.value)}/></Field><Field label="Minutos"><input type="number" min="0" max="59" value={form.minutes} onChange={e=>update('minutes',e.target.value)}/></Field></div>
       <Field label="Extras ($)"><input type="number" min="0" value={form.extras} onChange={e=>update('extras',e.target.value)}/></Field><Field label="Mano de obra ($)"><input type="number" min="0" value={form.labor} onChange={e=>update('labor',e.target.value)}/></Field><Field label="Riesgo de falla (%)"><input type="number" min="0" max="100" step="1" value={form.failure} onChange={e=>update('failure',e.target.value)}/></Field><Field label={`Ganancia: ${form.profit}%`}><input type="range" min="0" max="150" value={form.profit} onChange={e=>update('profit',e.target.value)}/></Field></div>
     <div className="priceModeBox"><div><b>Precio final</b><span>Usa el cálculo automático o define una promoción.</span></div><div className="priceModeOptions"><button className={form.priceMode!=='manual'?'active':''} onClick={()=>update('priceMode','auto')}>Automático</button><button className={form.priceMode==='manual'?'active':''} onClick={()=>update('priceMode','manual')}>Manual / promoción</button></div>{form.priceMode==='manual'&&<Field label="Total a cobrar ($)"><input type="number" min="0" step=".01" value={form.manualTotal} onChange={e=>update('manualTotal',e.target.value)} placeholder={String(calc.automaticTotal)}/></Field>}<div className={`priceHealth ${calc.belowCost?'warning':'healthy'}`}><span>Sugerencia automática: <b>{money(calc.automaticTotal)}</b></span>{calc.isManual&&<span>Utilidad real: <b>{money(calc.profitAmount)}</b> · Margen: <b>{calc.marginPercent.toFixed(1)}%</b></span>}{calc.belowCost&&<strong>El precio manual está por debajo del costo de producción.</strong>}</div></div>
@@ -288,10 +295,10 @@ function ServiceQuote({service,inventory,setInventory,catalog:productCatalog,set
   const catalogProducts=(productCatalog||[]).filter(p=>(p.service===service||p.service==='all')&&p.status!=='hidden')
   const inventoryProducts=(inventory||[]).filter(i=>i.category===service&&i.type==='product'&&num(i.stock)>0)
   const initialJobType=isLaser?'cut':'vinyl'
-  const initial={client:'',project:'',comments:'',catalogProduct:'',jobType:initialJobType,materialSource:'studio',material:catalog[0]?.id||'',quantity:1,width:isLaser?30:10,height:isLaser?30:10,hours:0,minutes:isLaser?20:10,labor:0,design:0,assembly:0,extras:0,profit:num(settings.defaultProfit)||50,manualMaterial:'',priceMode:'auto',manualTotal:'',fullSheet:false,advanced:false}
+  const initial={client:'',project:'',comments:'',catalogProduct:'',jobType:initialJobType,materialSource:'none',material:'',quantity:1,width:0,height:0,hours:0,minutes:0,labor:0,design:0,assembly:0,extras:0,profit:num(settings.defaultProfit)||50,manualMaterial:'',priceMode:'auto',manualTotal:'',fullSheet:false,advanced:false}
   const [form,setForm]=useState(initial),[saved,setSaved]=useState(false)
   const update=(k,v)=>{setSaved(false);setForm({...form,[k]:v})}
-  const material=catalog.find(m=>m.id===form.material)||catalog[0]||{name:'Material',sheetWidth:1,sheetHeight:1,sheetCost:0,waste:10}
+  const material=form.material?(catalog.find(m=>m.id===form.material)||{name:'Sin material',sheetWidth:1,sheetHeight:1,sheetCost:0,waste:0}):{name:'Sin material',sheetWidth:1,sheetHeight:1,sheetCost:0,waste:0}
   const catalogItem=catalogProducts.find(p=>p.id===form.catalogProduct)
   const inventoryProduct=inventoryProducts.find(p=>`stock-${p.id}`===form.catalogProduct)
   const selectedProduct=catalogItem?{...catalogItem,source:'catalog'}:inventoryProduct?{id:`stock-${inventoryProduct.id}`,name:inventoryProduct.name,price:num(inventoryProduct.salePrice)||unitCost(inventoryProduct),source:'inventory',inventoryId:inventoryProduct.id}:null
@@ -375,8 +382,9 @@ function Catalog({products,setProducts}){
 
 const labels={pending:'Pendiente',process:'En proceso',ready:'Listo',delivered:'Entregado',cancelled:'Cancelado'}
 function Status({value}){return <span className={`status ${value}`}>{labels[value]||value}</span>}
-function Orders({orders,setOrders}){
-  const [filter,setFilter]=useState('active'),[paymentFilter,setPaymentFilter]=useState('all')
+function Orders({orders,setOrders,view}){
+  const [filter,setFilter]=useState(view?.filter||'active'),[paymentFilter,setPaymentFilter]=useState(view?.paymentFilter||'all')
+  useEffect(()=>{setFilter(view?.filter||'active');setPaymentFilter(view?.paymentFilter||'all')},[view?.key])
   const update=(id,patch)=>setOrders(current=>current.map(order=>order.id===id?{...order,...patch}:order))
   const replace=updated=>setOrders(current=>current.map(order=>order.id===updated.id?updated:order))
   const activeOrders=orders.filter(order=>order.status!=='cancelled'&&!isOrderFinalized(order))
@@ -384,19 +392,11 @@ function Orders({orders,setOrders}){
   const collected=orders.filter(order=>order.status!=='cancelled').reduce((sum,order)=>sum+paymentSummary(order).paid,0)
   const receivable=activeOrders.reduce((sum,order)=>sum+paymentSummary(order).balance,0)
   const overdue=activeOrders.filter(order=>isPaymentOverdue(order)).length
-  const shown=orders.filter(order=>{
-    const productionMatches=filter==='active'
-      ? order.status!=='cancelled'&&!isOrderFinalized(order)
-      : filter==='finalized'
-        ? isOrderFinalized(order)
-        : order.status==='cancelled'
-    const paymentMatches=paymentFilter==='all'||paymentSummary(order).status===paymentFilter
-    return productionMatches&&paymentMatches
-  })
+  const shown=orders.filter(order=>orderMatchesView(order,filter,paymentFilter))
   const changeStatus=(order,status)=>update(order.id,{status,...(status==='delivered'?{deliveredAt:new Date().toISOString()}:{})})
   const deliverAndPay=(order,method)=>replace(settleAndDeliverOrder(order,{id:uid(),date:today(),method,createdAt:new Date().toISOString()}))
   return <><div className="stats compact paymentStats"><Stat label="Pedidos activos" value={activeOrders.length} tone="blue"/><Stat label="Cobrado" value={money(collected)} tone="green"/><Stat label="Por cobrar" value={money(receivable)} tone="orange"/><Stat label="Pagos vencidos" value={overdue} tone="purple"/></div>
-    <Card title="Pedidos y pagos" subtitle="Los pedidos entregados y pagados pasan a Finalizados y quedan protegidos contra cambios."><div className="orderFilters"><div className="filters">{[['active','Activos',activeOrders.length],['finalized','Finalizados',finalizedOrders.length],['cancelled','Cancelados',orders.filter(order=>order.status==='cancelled').length]].map(([id,label,count])=><button key={id} className={filter===id?'active':''} onClick={()=>setFilter(id)}>{label}<small>{count}</small></button>)}</div><label className="paymentFilter"><span>Estado de pago</span><select value={paymentFilter} onChange={event=>setPaymentFilter(event.target.value)}><option value="all">Todos</option><option value="unpaid">Sin pago</option><option value="partial">Pago parcial</option><option value="paid">Pagado</option></select></label></div>
+    <Card title="Pedidos y pagos" subtitle="Los pedidos entregados y pagados pasan a Finalizados y quedan protegidos contra cambios."><div className="orderFilters"><div className="filters">{[['active','Activos',activeOrders.length],['finalized','Finalizados',finalizedOrders.length],['cancelled','Cancelados',orders.filter(order=>order.status==='cancelled').length]].map(([id,label,count])=><button key={id} className={filter===id?'active':''} onClick={()=>setFilter(id)}>{label}<small>{count}</small></button>)}</div><label className="paymentFilter"><span>Estado de pago</span><select value={paymentFilter} onChange={event=>setPaymentFilter(event.target.value)}><option value="all">Todos</option><option value="due">Con saldo por cobrar</option><option value="unpaid">Sin pago</option><option value="partial">Pago parcial</option><option value="paid">Pagado</option></select></label></div>
     {shown.length?<div className="cardsList">{shown.map(order=>{const locked=isOrderFinalized(order);return <article className={`orderCard ${isPaymentOverdue(order)?'paymentOverdue':''} ${locked?'orderLocked':''}`} key={order.id}><div><div className="orderBadges"><Status value={order.status}/>{locked&&<span className="lockedBadge">Finalizado</span>}{isPaymentOverdue(order)&&<span className="overdueBadge">Pago vencido</span>}{order.status==='delivered'&&paymentSummary(order).balance>0&&<span className="balanceDueBadge">Entregado · pago pendiente</span>}</div><h3>{order.project||'Pedido'}</h3><p>{order.client||'Sin cliente'} · {order.quantity} pieza(s)</p>{order.comments?.trim()&&<p className="orderComments">{order.comments}</p>}{order.productionParams?.profileName&&<p className="orderParameters">Parámetros: {order.productionParams.profileName}</p>}{order.inventoryDeductions?.length>0&&<p className="inventoryDeduction">Inventario descontado: {order.inventoryDeductions.map(item=>`${item.name} · ${num(item.amount).toFixed(item.unit==='g'?1:2)} ${item.unit}`).join(' | ')}</p>}</div><b className="orderTotal">{money(order.total)}</b><Field label="Estado del pedido"><select disabled={locked} value={order.status} onChange={event=>changeStatus(order,event.target.value)}>{Object.entries(labels).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></Field><Field label="Fecha de entrega"><input disabled={locked} type="date" value={order.dueDate||''} onChange={event=>update(order.id,{dueDate:event.target.value})}/></Field>{!locked&&<button className="iconButton danger" aria-label="Eliminar pedido" onClick={()=>confirm('¿Eliminar este pedido y su historial de pagos?')&&setOrders(current=>current.filter(item=>item.id!==order.id))}><Trash2 size={17}/></button>}<OrderPayments order={order} onChange={replace} onDeliverAndPay={deliverAndPay} locked={locked}/></article>})}</div>:<Empty text="No hay pedidos con estos filtros."/>}</Card></>
 }
 
@@ -556,7 +556,10 @@ function ParametersPage(){
 function Card({title,subtitle,children}){return <section className="card"><div className="cardTitle"><div><h2>{title}</h2>{subtitle&&<p>{subtitle}</p>}</div></div>{children}</section>}
 function Field({label,children,full}){return <label className={`field ${full?'full':''}`}><span>{label}</span>{children}</label>}
 function Line({label,value,bold}){return <div className={`line ${bold?'bold':''}`}><span>{label}</span><b>{money(value)}</b></div>}
-function Stat({label,value,tone}){return <article className={`stat ${tone}`}><span>{label}</span><strong>{value}</strong></article>}
+function Stat({label,value,tone,onClick}){
+  const content=<><span>{label}</span><strong>{value}</strong>{onClick&&<small>Ver pedidos</small>}</>
+  return onClick?<button type="button" className={`stat statButton ${tone}`} onClick={onClick} aria-label={`${label}: ${value}. Ver pedidos`}>{content}</button>:<article className={`stat ${tone}`}>{content}</article>
+}
 function Empty({text}){return <div className="empty"><Archive/><p>{text}</p></div>}
 function SearchBox({value,setValue,placeholder}){return <label className="searchBox"><Search size={18}/><input value={value} onChange={e=>setValue(e.target.value)} placeholder={placeholder}/></label>}
 createRoot(document.getElementById('root')).render(<App/>)
