@@ -1,5 +1,12 @@
 # Changelog
 
+## 23.0.0 — Cotizaciones limpias y accesos rápidos
+
+- Los cotizadores de Impresión 3D, Láser y Cricut inician sin material seleccionado.
+- Las medidas, el peso y el tiempo de máquina comienzan en cero para evitar usar datos de ejemplo por accidente.
+- Resumen muestra el saldo total por cobrar y permite abrir directamente los pedidos con saldo pendiente.
+- La tarjeta **Pedidos activos** abre la lista de pedidos en curso con un solo toque.
+
 ## 22.0.0 — Compras sin doble captura
 
 - Inventario se convirtió en el único lugar para registrar compras de materiales y productos.
